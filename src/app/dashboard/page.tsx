@@ -32,10 +32,40 @@ interface BacklogItem {
     statut: string;
 }
 
+interface SnapshotEntry {
+    platform: string;
+    owner: string;
+    followers: number;
+    totalViews: number;
+    totalLikes: number;
+    totalComments: number;
+    date: string;
+}
+
 interface MetricsData {
-    snapshots: Record<string, Array<{ platform: string; followers: number; totalViews: number; date: string }>>;
+    snapshots: Record<string, SnapshotEntry[]>;
+    metrics: Record<string, unknown[]>;
     lastUpdated: string | null;
 }
+
+const platformIcons: Record<string, string> = {
+    youtube: "🎥",
+    tiktok: "🎵",
+    facebook: "📘",
+    instagram: "📸",
+};
+
+const platformColors: Record<string, string> = {
+    youtube: "bg-red-50 border-red-200 text-red-700",
+    tiktok: "bg-pink-50 border-pink-200 text-pink-700",
+    facebook: "bg-blue-50 border-blue-200 text-blue-700",
+    instagram: "bg-purple-50 border-purple-200 text-purple-700",
+};
+
+const ownerLabels: Record<string, string> = {
+    anna: "Anna OLLIVIER",
+    david: "David",
+};
 
 export default function DashboardPage() {
     const [analyses, setAnalyses] = useState<Analysis[]>([]);
@@ -74,6 +104,21 @@ export default function DashboardPage() {
     const recentVeille = veille.slice(0, 5);
     const pendingBacklog = backlog.filter((b) => b.statut !== "Terminé").slice(0, 5);
 
+    // Calculer les KPIs par owner
+    const getLatestSnapshot = (owner: string, platform: string): SnapshotEntry | null => {
+        const key = `${owner}_${platform}`;
+        const snaps = metrics?.snapshots?.[key];
+        return snaps && snaps.length > 0 ? snaps[0] : null;
+    };
+
+    const annaYt = getLatestSnapshot("anna", "youtube");
+    const annaIg = getLatestSnapshot("anna", "instagram");
+    const davidYt = getLatestSnapshot("david", "youtube");
+
+    // Grouper les snapshots par owner
+    const owners = ["anna", "david"];
+    const platforms = ["youtube", "tiktok", "facebook", "instagram"];
+
     return (
         <div className="p-8">
             <div className="mb-8">
@@ -82,7 +127,7 @@ export default function DashboardPage() {
             </div>
 
             {/* KPI Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:gridcols-4 gap-6 mb-8">
                 <StatCard
                     title="Analyses réalisées"
                     value={String(analyses.length)}
@@ -102,8 +147,8 @@ export default function DashboardPage() {
                     color="amber"
                 />
                 <StatCard
-                    title="Abonnés YouTube"
-                    value={metrics?.snapshots?.youtube?.[0]?.followers?.toLocaleString("fr-FR") || "—"}
+                    title="Abonnés YouTube Anna"
+                    value={annaYt?.followers?.toLocaleString("fr-FR") || "—"}
                     icon="🎥"
                     color="red"
                 />
@@ -156,29 +201,46 @@ export default function DashboardPage() {
                 </div>
             </div>
 
-            {/* Métriques réseaux sociaux */}
+            {/* Métriques réseaux sociaux par owner */}
             {metrics?.snapshots && Object.keys(metrics.snapshots).length > 0 && (
-                <div className="mt-6 bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-                    <h2 className="text-lg font-semibold text-slate-900 mb-4">📈 Évolution Réseaux Sociaux</h2>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        {Object.entries(metrics.snapshots).map(([platform, snaps]) => {
-                            const latest = snaps[0];
-                            const prev = snaps[1];
-                            const diff = prev ? latest.followers - prev.followers : 0;
-                            return (
-                                <div key={platform} className="bg-slate-50 rounded-lg p-4">
-                                    <p className="text-sm font-medium text-slate-500 capitalize">{platform}</p>
-                                    <p className="text-2xl font-bold text-slate-900">{latest.followers.toLocaleString("fr-FR")}</p>
-                                    <p className={`text-sm ${diff >= 0 ? "text-green-600" : "text-red-600"}`}>
-                                        {diff >= 0 ? "+" : ""}{diff} abonnés
-                                    </p>
-                                    <p className="text-xs text-slate-400 mt-1">
-                                        Vues totales: {latest.totalViews?.toLocaleString("fr-FR") || "—"}
-                                    </p>
+                <div className="mt-6 space-y-6">
+                    {owners.map((owner) => {
+                        const ownerPlatforms = platforms.filter((p) => metrics.snapshots[`${owner}_${p}`]);
+                        if (ownerPlatforms.length === 0) return null;
+                        return (
+                            <div key={owner} className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                                <h2 className="text-lg font-semibold text-slate-900 mb-4">
+                                    📈 {ownerLabels[owner] || owner} — Réseaux Sociaux
+                                </h2>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                    {ownerPlatforms.map((platform) => {
+                                        const key = `${owner}_${platform}`;
+                                        const snaps = metrics.snapshots[key];
+                                        const latest = snaps[0];
+                                        const prev = snaps[1];
+                                        const diff = prev ? latest.followers - prev.followers : 0;
+                                        const viewsDiff = prev ? latest.totalViews - prev.totalViews : 0;
+                                        return (
+                                            <div key={key} className={`rounded-lg p-4 border ${platformColors[platform] || "bg-slate-50 border-slate-200"}`}>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-xl">{platformIcons[platform] || "🌐"}</span>
+                                                    <p className="text-sm font-medium capitalize">{platform}</p>
+                                                </div>
+                                                <p className="text-2xl font-bold mt-2">{latest.followers.toLocaleString("fr-FR")}</p>
+                                                <p className={`text-sm ${diff >= 0 ? "text-green-600" : "text-red-600"}`}>
+                                                    {diff >= 0 ? "+" : ""}{diff} abonnés
+                                                </p>
+                                                <p className="text-xs mt-1 opacity-75">
+                                                    Vues: {latest.totalViews?.toLocaleString("fr-FR") || "—"}
+                                                    {viewsDiff !== 0 && ` (${viewsDiff >= 0 ? "+" : ""}${viewsDiff.toLocaleString("fr-FR")})`}
+                                                </p>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
-                            );
-                        })}
-                    </div>
+                            </div>
+                        );
+                    })}
                 </div>
             )}
         </div>

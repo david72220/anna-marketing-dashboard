@@ -9,21 +9,24 @@ datasource db {
 
 model SocialMetric {
     id          Int      @id @default(autoincrement())
-    platform    String   // youtube, tiktok, facebook
+    platform    String   // youtube, tiktok, facebook, instagram
     metricType  String   // views, comments, followers, likes
     value       Int
     date        DateTime @default(now())
+    owner       String   @default("anna") // anna ou david
     videoId     String?
     videoTitle  String?
     createdAt   DateTime @default(now())
 
     @@index([platform, date])
     @@index([platform, metricType, date])
+    @@index([owner, platform, date])
 }
 
 model DailySnapshot {
     id              Int      @id @default(autoincrement())
     platform        String
+    owner           String   @default("anna") // anna ou david
     followers       Int      @default(0)
     totalViews      Int      @default(0)
     totalLikes      Int      @default(0)
@@ -31,5 +34,5 @@ model DailySnapshot {
     date            DateTime @default(now())
     createdAt       DateTime @default(now())
 
-    @@unique([platform, date])
+    @@unique([platform, owner, date])
 }

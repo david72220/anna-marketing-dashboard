@@ -1,5 +1,30 @@
+# dependencies
 node_modules/
 .npm-cache/
+
+# next.js
 .next/
+out/
+
+# production
+build/
+
+# misc
 *.log
 .DS_Store
+.env*.local
+
+# debug
+npm-debug.log*
+
+# database
+*.db
+*.db-journal
+prisma/dev.db
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
