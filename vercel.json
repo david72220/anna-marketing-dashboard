@@ -1,0 +1,8 @@
+{
+    "crons": [
+        {
+            "path": "/api/social/collect",
+            "schedule": "0 6 * * *"
+        }
+    ]
+}
