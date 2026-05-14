@@ -220,6 +220,7 @@ export default function DashboardPage() {
                                         const prev = snaps[1];
                                         const diff = prev ? latest.followers - prev.followers : 0;
                                         const viewsDiff = prev ? latest.totalViews - prev.totalViews : 0;
+                                        const likesDiff = prev ? (latest.totalLikes || 0) - (prev.totalLikes || 0) : 0;
                                         return (
                                             <div key={key} className={`rounded-lg p-4 border ${platformColors[platform] || "bg-slate-50 border-slate-200"}`}>
                                                 <div className="flex items-center gap-2">
@@ -233,6 +234,10 @@ export default function DashboardPage() {
                                                 <p className="text-xs mt-1 opacity-75">
                                                     Vues: {latest.totalViews?.toLocaleString("fr-FR") || "—"}
                                                     {viewsDiff !== 0 && ` (${viewsDiff >= 0 ? "+" : ""}${viewsDiff.toLocaleString("fr-FR")})`}
+                                                </p>
+                                                <p className="text-xs opacity-75">
+                                                    ❤️ {latest.totalLikes?.toLocaleString("fr-FR") || "—"}
+                                                    {likesDiff !== 0 && ` (${likesDiff >= 0 ? "+" : ""}${likesDiff.toLocaleString("fr-FR")})`}
                                                 </p>
                                             </div>
                                         );
