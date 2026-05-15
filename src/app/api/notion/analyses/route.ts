@@ -14,12 +14,19 @@ export async function GET() {
                 id: page.id,
                 title: getPageTitle(page),
                 plateforme: getPropertyText(props["Plateforme"] || {}),
-                scorePertinence: getPropertyText(props["Score Pertinence"] || {}),
+                scoreGlobal: getPropertyText(props["Score Global"] || {}),
+                scoreHook: getPropertyText(props["Score Hook"] || {}),
+                scoreCTA: getPropertyText(props["Score CTA"] || {}),
+                scoreSEO: getPropertyText(props["Score SEO"] || {}),
                 scoreEngagement: getPropertyText(props["Score Engagement"] || {}),
-                recommandations: getPropertyText(props["Recommandations"] || {}),
+                pointsForts: getPropertyText(props["Points Forts"] || {}),
+                axesAmelioration: getPropertyText(props["Axes Amelioration"] || {}),
+                hookSuggere: getPropertyText(props["Hook Suggere"] || {}),
+                hashtags: getPropertyText(props["Hashtags"] || {}),
+                ecosystemeMotsCles: getPropertyText(props["Ecosystème Mots-clés"] || {}),
+                resume: getPropertyText(props["Resume"] || {}),
                 statut: getPropertyText(props["Statut"] || {}),
                 dateAnalyse: getPropertyText(props["Date Analyse"] || {}),
-                urlContenu: getPropertyText(props["URL Contenu"] || {}),
                 createdTime: page.created_time,
             };
         });
@@ -84,6 +91,7 @@ export async function POST(request: Request) {
         });
     } catch (error) {
         console.error("Erreur POST analyses:", error);
-        return NextResponse.json({ error: "Erreur lors du lancement de l'analyse" }, { status: 500 });
+        const message = error instanceof Error ? error.message : "Erreur inconnue";
+        return NextResponse.json({ error: "Erreur lors du lancement de l'analyse", details: message }, { status: 500 });
     }
 }

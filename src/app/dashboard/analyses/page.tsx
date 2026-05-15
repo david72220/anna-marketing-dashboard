@@ -6,9 +6,17 @@ interface Analysis {
     id: string;
     title: string;
     plateforme: string;
-    scorePertinence: string;
+    scoreGlobal: string;
+    scoreHook: string;
+    scoreCTA: string;
+    scoreSEO: string;
     scoreEngagement: string;
-    recommandations: string;
+    pointsForts: string;
+    axesAmelioration: string;
+    hookSuggere: string;
+    hashtags: string;
+    ecosystemeMotsCles: string;
+    resume: string;
     statut: string;
     dateAnalyse: string;
 }
@@ -20,12 +28,33 @@ const networks = [
     { id: "tiktok", label: "TikTok", icon: "🎵" },
 ];
 
+function ScoreBadge({ label, value, color }: { label: string; value: string; color: string }) {
+    const num = parseFloat(value);
+    const display = isNaN(num) ? value || "—" : `${Math.round(num)}/10`;
+    return (
+        <div className={`${color} px-3 py-2 rounded-lg text-center min-w-[80px]`}>
+            <p className="text-[11px] font-medium opacity-70">{label}</p>
+            <p className="font-bold text-brandtext text-sm">{display}</p>
+        </div>
+    );
+}
+
+function Section({ label, content }: { label: string; content: string }) {
+    if (!content) return null;
+    return (
+        <div className="mt-3 bg-cream rounded-lg p-3">
+            <p className="text-[11px] font-medium text-brandmuted mb-1">{label}</p>
+            <p className="text-sm text-brandtext whitespace-pre-line">{content}</p>
+        </div>
+    );
+}
+
 export default function AnalysesPage() {
     const [analyses, setAnalyses] = useState<Analysis[]>([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState("all");
+    const [selectedId, setSelectedId] = useState<string | null>(null);
 
-    // New analysis form state
     const [selectedNetworks, setSelectedNetworks] = useState<string[]>([]);
     const [prompt, setPrompt] = useState("");
     const [launching, setLaunching] = useState(false);
@@ -66,7 +95,6 @@ export default function AnalysesPage() {
             setLaunchMessage("Analyse lancée avec succès ! Les résultats apparaîtront sous peu.");
             setSelectedNetworks([]);
             setPrompt("");
-            // Rafraîchir la liste après un court délai
             setTimeout(() => {
                 fetch("/api/notion/analyses")
                     .then((r) => r.json())
@@ -81,12 +109,14 @@ export default function AnalysesPage() {
         }
     };
 
-    const filtered = filter === "all" ? analyses : analyses.filter((a) => a.plateforme === filter);
+    const filtered = filter === "all" ? analyses : analyses.filter((a) => a.plateforme.toLowerCase().includes(filter.toLowerCase()));
     const platforms = [...new Set(analyses.map((a) => a.plateforme))];
 
     if (loading) {
         return <div className="flex items-center justify-center h-full"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-mauve"></div></div>;
     }
+
+    const selected = selectedId ? analyses.find((a) => a.id === selectedId) : null;
 
     return (
         <div className="p-8">
@@ -155,6 +185,7 @@ export default function AnalysesPage() {
                 </div>
             </div>
 
+            {/* Filters */}
             <div className="flex gap-2 mb-6">
                 <button onClick={() => setFilter("all")} className={`px-4 py-2 rounded-lg text-sm ${filter === "all" ? "bg-mauve text-cream" : "bg-white text-brandtext border border-warm"}`}>Toutes</button>
                 {platforms.map((p) => (
@@ -168,34 +199,62 @@ export default function AnalysesPage() {
                     <p className="text-brandmuted text-sm mt-2">Les automatisations rempliront cette section automatiquement</p>
                 </div>
             ) : (
-                <div className="space-y-4">
-                    {filtered.map((a) => (
-                        <div key={a.id} className="bg-white rounded-xl border border-warm p-6 hover:shadow-md transition-shadow">
-                            <div className="flex items-start justify-between">
-                                <div>
-                                    <h3 className="font-semibold text-brandtext">{a.title}</h3>
-                                    <p className="text-sm text-brandmuted mt-1">{a.plateforme} • {a.dateAnalyse}</p>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* Left: analysis list */}
+                    <div className="lg:col-span-1 space-y-3">
+                        {filtered.map((a) => (
+                            <button
+                                key={a.id}
+                                onClick={() => setSelectedId(a.id)}
+                                className={`w-full text-left bg-white rounded-xl border p-4 transition-shadow hover:shadow-md ${selectedId === a.id ? "border-mauve ring-2 ring-mauve/30" : "border-warm"}`}
+                            >
+                                <h3 className="font-semibold text-brandtext text-sm">{a.title}</h3>
+                                <p className="text-xs text-brandmuted mt-1">{a.plateforme} • {a.dateAnalyse}</p>
+                                <div className="flex items-center gap-2 mt-2">
+                                    <span className={`text-[10px] px-2 py-0.5 rounded-full ${a.statut === "Terminé" ? "bg-brandgreen/10 text-brandgreen" : "bg-rose/10 text-rose"}`}>{a.statut}</span>
+                                    {a.scoreGlobal && (
+                                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-mauve/10 text-mauve font-medium">{Math.round(parseFloat(a.scoreGlobal))}/10</span>
+                                    )}
                                 </div>
-                                <span className={`text-xs px-3 py-1 rounded-full ${a.statut === "Terminé" ? "bg-brandgreen/10 text-brandgreen" : "bg-rose/10 text-rose"}`}>{a.statut}</span>
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Right: detail view */}
+                    <div className="lg:col-span-2">
+                        {selected ? (
+                            <div className="bg-white rounded-xl border border-warm p-6">
+                                <div className="flex items-start justify-between mb-4">
+                                    <div>
+                                        <h2 className="text-xl font-bold text-brandtext">{selected.title}</h2>
+                                        <p className="text-sm text-brandmuted mt-1">{selected.plateforme} • {selected.dateAnalyse}</p>
+                                    </div>
+                                    <span className={`text-xs px-3 py-1 rounded-full ${selected.statut === "Terminé" ? "bg-brandgreen/10 text-brandgreen" : "bg-rose/10 text-rose"}`}>{selected.statut}</span>
+                                </div>
+
+                                {selected.resume && <Section label="Résumé" content={selected.resume} />}
+
+                                {/* Scores */}
+                                <div className="flex flex-wrap gap-2 mt-4">
+                                    <ScoreBadge label="Global" value={selected.scoreGlobal} color="bg-mauve/10" />
+                                    <ScoreBadge label="Hook" value={selected.scoreHook} color="bg-rose/10" />
+                                    <ScoreBadge label="CTA" value={selected.scoreCTA} color="bg-blue-100" />
+                                    <ScoreBadge label="SEO" value={selected.scoreSEO} color="bg-green-50" />
+                                    <ScoreBadge label="Engagement" value={selected.scoreEngagement} color="bg-amber-50" />
+                                </div>
+
+                                <Section label="Points Forts" content={selected.pointsForts} />
+                                <Section label="Axes d'Amélioration" content={selected.axesAmelioration} />
+                                <Section label="Hook Suggéré" content={selected.hookSuggere} />
+                                <Section label="Hashtags" content={selected.hashtags} />
+                                <Section label="Écosystème Mots-clés" content={selected.ecosystemeMotsCles} />
                             </div>
-                            <div className="flex gap-4 mt-4">
-                                <div className="bg-rose/10 px-3 py-2 rounded-lg">
-                                    <p className="text-xs text-rose">Pertinence</p>
-                                    <p className="font-bold text-brandtext">{a.scorePertinence || "—"}</p>
-                                </div>
-                                <div className="bg-mauve/10 px-3 py-2 rounded-lg">
-                                    <p className="text-xs text-mauve">Engagement</p>
-                                    <p className="font-bold text-brandtext">{a.scoreEngagement || "—"}</p>
-                                </div>
+                        ) : (
+                            <div className="bg-white rounded-xl border border-warm p-12 text-center">
+                                <p className="text-brandmuted">Sélectionnez une analyse pour voir les détails</p>
                             </div>
-                            {a.recommandations && (
-                                <div className="mt-4 bg-cream rounded-lg p-4">
-                                    <p className="text-xs font-medium text-brandmuted mb-1">Recommandations</p>
-                                    <p className="text-sm text-brandtext">{a.recommandations}</p>
-                                </div>
-                            )}
-                        </div>
-                    ))}
+                        )}
+                    </div>
                 </div>
             )}
         </div>
