@@ -21,12 +21,29 @@ interface Analysis {
     dateAnalyse: string;
 }
 
+interface Snapshot {
+    platform: string;
+    owner: string;
+    followers: number;
+    totalViews: number;
+    totalLikes: number;
+    totalComments: number;
+    date: string;
+}
+
 const networks = [
     { id: "youtube", label: "YouTube", icon: "🎥" },
     { id: "instagram", label: "Instagram", icon: "📸" },
     { id: "facebook", label: "Facebook", icon: "📘" },
     { id: "tiktok", label: "TikTok", icon: "🎵" },
 ];
+
+const platformLabels: Record<string, string> = {
+    youtube: "YouTube",
+    instagram: "Instagram",
+    facebook: "Facebook",
+    tiktok: "TikTok",
+};
 
 function ScoreBadge({ label, value, color }: { label: string; value: string; color: string }) {
     const num = parseFloat(value);
@@ -49,11 +66,61 @@ function Section({ label, content }: { label: string; content: string }) {
     );
 }
 
+function KPICard({ label, value, prev, icon }: { label: string; value: number; prev?: number; icon: string }) {
+    const diff = prev && prev !== 0 ? value - prev : null;
+    const pct = diff !== null && prev !== 0 ? ((diff / prev) * 100).toFixed(1) : null;
+    return (
+        <div className="bg-white rounded-lg p-3 border border-warm">
+            <p className="text-[11px] text-brandmuted mb-1">{icon} {label}</p>
+            <p className="text-lg font-bold text-brandtext">{value.toLocaleString("fr-FR")}</p>
+            {diff !== null && pct !== null && (
+                <p className={`text-[11px] mt-0.5 ${diff >= 0 ? "text-brandgreen" : "text-rose"}`}>
+                    {diff >= 0 ? "+" : ""}{diff.toLocaleString("fr-FR")} ({diff >= 0 ? "+" : ""}{pct}%)
+                </p>
+            )}
+        </div>
+    );
+}
+
+function KPISection({ platformKeys, snapshots }: { platformKeys: string[]; snapshots: Record<string, Snapshot[]> }) {
+    const relevantKeys = platformKeys.filter((k) => snapshots[k]?.length > 0);
+    if (relevantKeys.length === 0) return null;
+
+    return (
+        <div className="mt-4 border-t border-warm pt-4">
+            <p className="text-sm font-semibold text-brandtext mb-3">📊 KPI des réseaux analysés</p>
+            <div className="space-y-4">
+                {relevantKeys.map((key) => {
+                    const snaps = snapshots[key];
+                    const latest = snaps[0];
+                    const prev = snaps[1];
+                    const label = platformLabels[latest.platform] || latest.platform;
+                    return (
+                        <div key={key} className="bg-cream rounded-lg p-3">
+                            <p className="text-xs font-medium text-brandmuted mb-2">
+                                {label} — {latest.owner}
+                                <span className="ml-2 text-[10px] opacity-60">mis à jour {new Date(latest.date).toLocaleDateString("fr-FR")}</span>
+                            </p>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                <KPICard label="Abonnés" value={latest.followers} prev={prev?.followers} icon="👥" />
+                                <KPICard label="Vues totales" value={latest.totalViews} prev={prev?.totalViews} icon="👁️" />
+                                <KPICard label="Likes" value={latest.totalLikes} prev={prev?.totalLikes} icon="❤️" />
+                                <KPICard label="Commentaires" value={latest.totalComments} prev={prev?.totalComments} icon="💬" />
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
+
 export default function AnalysesPage() {
     const [analyses, setAnalyses] = useState<Analysis[]>([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState("all");
     const [selectedId, setSelectedId] = useState<string | null>(null);
+    const [snapshots, setSnapshots] = useState<Record<string, Snapshot[]>>({});
 
     const [selectedNetworks, setSelectedNetworks] = useState<string[]>([]);
     const [prompt, setPrompt] = useState("");
@@ -66,6 +133,13 @@ export default function AnalysesPage() {
             .then((r) => r.json())
             .then((data) => { setAnalyses(Array.isArray(data) ? data : []); setLoading(false); })
             .catch(() => setLoading(false));
+    }, []);
+
+    useEffect(() => {
+        fetch("/api/social/metrics")
+            .then((r) => r.json())
+            .then((data) => { if (data.snapshots) setSnapshots(data.snapshots); })
+            .catch(() => { });
     }, []);
 
     const toggleNetwork = (id: string) => {
@@ -117,6 +191,18 @@ export default function AnalysesPage() {
     }
 
     const selected = selectedId ? analyses.find((a) => a.id === selectedId) : null;
+
+    const getPlatformKeys = (plateforme: string): string[] => {
+        const keys: string[] = [];
+        for (const net of networks) {
+            if (plateforme.toLowerCase().includes(net.id)) {
+                keys.push(`anna_${net.id}`);
+            }
+        }
+        return keys.length > 0 ? keys : Object.keys(snapshots).filter((k) =>
+            plateforme.toLowerCase().includes(k.split("_")[1] || "")
+        );
+    };
 
     return (
         <div className="p-8">
@@ -242,6 +328,9 @@ export default function AnalysesPage() {
                                     <ScoreBadge label="SEO" value={selected.scoreSEO} color="bg-green-50" />
                                     <ScoreBadge label="Engagement" value={selected.scoreEngagement} color="bg-amber-50" />
                                 </div>
+
+                                {/* KPI for analyzed platforms */}
+                                <KPISection platformKeys={getPlatformKeys(selected.plateforme)} snapshots={snapshots} />
 
                                 <Section label="Points Forts" content={selected.pointsForts} />
                                 <Section label="Axes d'Amélioration" content={selected.axesAmelioration} />
