@@ -63,6 +63,8 @@ export async function POST(request: Request) {
                 keywords: kwList,
                 platforms: networks,
                 prompt: `Analyse de contenu pour les réseaux : ${networks.join(", ")}.${kwList.length > 0 ? ` Mots-clés : ${kwList.join(", ")}.` : ""}`,
+                youtubeApiKey: process.env.YOUTUBE_API_KEY || "",
+                youtubeChannelId: process.env.ANNA_YOUTUBE_CHANNEL_ID || "",
             }),
         });
 
