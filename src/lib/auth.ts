@@ -6,19 +6,24 @@ export const authOptions: NextAuthOptions = {
         CredentialsProvider({
             name: "Credentials",
             credentials: {
-                email: { label: "Email", type: "email" },
+                username: { label: "Login", type: "text" },
                 password: { label: "Mot de passe", type: "password" },
             },
             async authorize(credentials) {
-                if (!credentials?.email || !credentials?.password) return null;
+                if (!credentials?.username || !credentials?.password) return null;
 
-                const validEmail = process.env.ADMIN_EMAIL || "anna-ollivier-psy";
-                const validPassword = process.env.APP_PASSWORD || "ChangeMe123!";
+                const validUsername = process.env.ADMIN_EMAIL;
+                const validPassword = process.env.ADMIN_PASSWORD;
 
-                if (credentials.email === validEmail && credentials.password === validPassword) {
+                if (!validUsername || !validPassword) {
+                    console.error("ADMIN_EMAIL et ADMIN_PASSWORD doivent être définis dans les variables d'environnement");
+                    return null;
+                }
+
+                if (credentials.username === validUsername && credentials.password === validPassword) {
                     return {
                         id: "1",
-                        email: validEmail,
+                        email: validUsername,
                         name: "Anna OLLIVIER",
                     };
                 }
