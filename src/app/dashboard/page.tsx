@@ -151,6 +151,30 @@ export default function DashboardPage() {
                 />
             </div>
 
+            <div className="mb-8 bg-cream rounded-xl shadow-sm border border-warm p-6">
+                <h2 className="text-lg font-semibold text-brandtext mb-4">🔗 Comptes sociaux analysés</h2>
+                <div className="flex flex-wrap gap-4">
+                    <a
+                        href="https://www.instagram.com/anna.ollivier.psy/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-mauve-50 border border-mauve-200 text-mauve-700 hover:bg-mauve-100 transition-colors"
+                    >
+                        <span className="text-xl">📸</span>
+                        <span className="font-medium text-sm">Instagram — @anna.ollivier.psy</span>
+                    </a>
+                    <a
+                        href="https://www.facebook.com/AnnaOllivierPsy"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100 transition-colors"
+                    >
+                        <span className="text-xl">📘</span>
+                        <span className="font-medium text-sm">Facebook — AnnaOllivierPsy</span>
+                    </a>
+                </div>
+            </div>
+
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className="bg-cream rounded-xl shadow-sm border border-warm p-6">
                     <h2 className="text-lg font-semibold text-brandtext mb-4">📋 Dernières Analyses</h2>

@@ -27,7 +27,6 @@ export default function AnalysesPage() {
 
     // New analysis form state
     const [selectedNetworks, setSelectedNetworks] = useState<string[]>([]);
-    const [keywords, setKeywords] = useState("");
     const [prompt, setPrompt] = useState("");
     const [launching, setLaunching] = useState(false);
     const [launchMessage, setLaunchMessage] = useState<string | null>(null);
@@ -51,14 +50,6 @@ export default function AnalysesPage() {
             setLaunchMessage("Veuillez sélectionner au moins un réseau.");
             return;
         }
-        const kwList = keywords
-            .split(",")
-            .map((k) => k.trim())
-            .filter((k) => k.length > 0);
-        if (kwList.length < 3) {
-            setLaunchMessage("Veuillez saisir au moins 3 mots-clés (séparés par des virgules).");
-            return;
-        }
         setLaunching(true);
         setLaunchMessage(null);
         setInProgress(true);
@@ -68,14 +59,12 @@ export default function AnalysesPage() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     networks: selectedNetworks,
-                    keywords: kwList,
                     prompt: prompt.trim() || undefined,
                 }),
             });
             if (!res.ok) throw new Error("Erreur " + res.status);
             setLaunchMessage("Analyse lancée avec succès ! Les résultats apparaîtront sous peu.");
             setSelectedNetworks([]);
-            setKeywords("");
             setPrompt("");
             // Rafraîchir la liste après un court délai
             setTimeout(() => {
@@ -134,21 +123,6 @@ export default function AnalysesPage() {
                             );
                         })}
                     </div>
-                </div>
-                <div className="mb-4">
-                    <label className="block text-sm font-medium text-brandtext mb-1">
-                        Mots-clés (min. 3, séparés par des virgules)
-                    </label>
-                    <textarea
-                        className="w-full rounded-lg border border-warm bg-white px-4 py-3 text-sm text-brandtext placeholder-brandmuted/50 focus:outline-none focus:ring-2 focus:ring-mauve"
-                        rows={3}
-                        placeholder="ex: anxiété enfant, confiance en soi ado, parentalité bienveillante, émotions, thérapie familiale..."
-                        value={keywords}
-                        onChange={(e) => setKeywords(e.target.value)}
-                    />
-                    <p className="text-xs text-brandmuted mt-1">
-                        {keywords.split(",").filter((k) => k.trim().length > 0).length} mot(s)-clé(s) saisi(s)
-                    </p>
                 </div>
                 <div className="mb-4">
                     <label className="block text-sm font-medium text-brandtext mb-1">

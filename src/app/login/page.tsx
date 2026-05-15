@@ -4,7 +4,7 @@ import { useState } from "react";
 import { signIn } from "next-auth/react";
 
 export default function LoginPage() {
-    const [email, setEmail] = useState("");
+    const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
@@ -15,7 +15,7 @@ export default function LoginPage() {
         setLoading(true);
 
         const res = await signIn("credentials", {
-            email,
+            username,
             password,
             redirect: false,
         });
@@ -23,7 +23,7 @@ export default function LoginPage() {
         setLoading(false);
 
         if (res?.error) {
-            setError("Email ou mot de passe incorrect");
+            setError("Login ou mot de passe incorrect");
         } else {
             window.location.href = "/dashboard";
         }
@@ -41,12 +41,12 @@ export default function LoginPage() {
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
                         <label className="block text-sm font-medium text-slate-700 mb-1">
-                            Email
+                            Login
                         </label>
                         <input
-                            type="email"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
+                            type="text"
+                            value={username}
+                            onChange={(e) => setUsername(e.target.value)}
                             required
                             className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500"
                         />

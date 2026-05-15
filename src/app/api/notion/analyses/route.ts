@@ -51,9 +51,8 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: "Aucun réseau sélectionné" }, { status: 400 });
         }
 
-        if (!keywords || !Array.isArray(keywords) || keywords.length < 3) {
-            return NextResponse.json({ error: "Au moins 3 mots-clés requis" }, { status: 400 });
-        }
+        // Mots-clés optionnels — laissés vides pour génération par N8N
+        const kwList = Array.isArray(keywords) && keywords.length > 0 ? keywords : [];
 
         // Appeler le webhook N8N pour déclencher l'analyse
         const n8nRes = await fetch(N8N_WEBHOOK, {
@@ -61,9 +60,9 @@ export async function POST(request: Request) {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 networks,
-                keywords,
+                keywords: kwList,
                 platforms: networks,
-                prompt: `Analyse de contenu pour les réseaux : ${networks.join(", ")}. Mots-clés : ${keywords.join(", ")}.`,
+                prompt: `Analyse de contenu pour les réseaux : ${networks.join(", ")}.${kwList.length > 0 ? ` Mots-clés : ${kwList.join(", ")}.` : ""}`,
             }),
         });
 

@@ -12,6 +12,46 @@ interface Snapshot {
     date: string;
 }
 
+function CollectButton() {
+    const [collecting, setCollecting] = useState(false);
+    const [message, setMessage] = useState<string | null>(null);
+
+    async function handleCollect() {
+        setCollecting(true);
+        setMessage(null);
+        try {
+            const res = await fetch("/api/social/collect", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${process.env.NEXT_PUBLIC_CRON_SECRET || "dev-mode"}`,
+                },
+            });
+            const json = await res.json();
+            if (!res.ok) throw new Error(json.error || "Erreur " + res.status);
+            setMessage("✅ Collecte lancée avec succès ! Rechargez la page dans quelques instants.");
+            window.location.reload();
+        } catch (e: any) {
+            setMessage("❌ " + (e.message || "Erreur lors de la collecte"));
+        } finally {
+            setCollecting(false);
+        }
+    }
+
+    return (
+        <div className="flex flex-col items-center gap-3">
+            <button
+                onClick={handleCollect}
+                disabled={collecting}
+                className="px-6 py-3 rounded-lg bg-[#9B7D96] text-white font-medium hover:bg-[#7D6078] transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+                {collecting ? "Collecte en cours…" : "Lancer la collecte des métriques"}
+            </button>
+            {message && <p className="text-sm text-[#7A6A6A]">{message}</p>}
+        </div>
+    );
+}
+
 export default function MetricsPage() {
     const [data, setData] = useState<{
         snapshots: Record<string, Snapshot[]>;
@@ -38,7 +78,22 @@ export default function MetricsPage() {
 
     if (loading) return <div className="p-8 text-[#7A6A6A]">Chargement…</div>;
     if (error) return <div className="p-8 text-[#C8A5A5]">Erreur : {error}</div>;
-    if (!data || !Object.keys(data.snapshots).length) return <div className="p-8 text-[#7A6A6A]">Aucune donnée disponible.</div>;
+    if (!data || !Object.keys(data.snapshots).length) {
+        return (
+            <div className="p-8">
+                <h1 className="text-2xl font-bold text-[#3A2E2E] mb-1">KPI réseaux</h1>
+                <p className="text-sm text-[#7A6A6A] mb-6">Données collectées automatiquement via les APIs.</p>
+                <div className="bg-[#FAF6F1] rounded-xl border border-[#EDE4D8] p-12 text-center">
+                    <p className="text-[#7A6A6A] text-lg mb-2 font-medium">Aucune donnée disponible pour le moment</p>
+                    <p className="text-[#7A6A6A] text-sm mb-6 max-w-xl mx-auto">
+                        Les métriques de vos réseaux sociaux (YouTube, Instagram, TikTok) n'ont pas encore été collectées.
+                        Cliquez ci-dessous pour lancer une première collecte manuelle. Les collectes automatiques se feront ensuite quotidiennement.
+                    </p>
+                    <CollectButton />
+                </div>
+            </div>
+        );
+    }
 
     const platformLabels: Record<string, string> = {
         youtube: "YouTube",
