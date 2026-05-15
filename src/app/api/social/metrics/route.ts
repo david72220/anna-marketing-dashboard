@@ -43,6 +43,10 @@ export async function GET() {
             snapshots: byPlatform,
             metrics: byMetricKey,
             lastUpdated: latestSnapshots[0]?.createdAt || null,
+        }, {
+            headers: {
+                "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+            },
         });
     } catch (error) {
         console.error("Erreur métriques:", error);
