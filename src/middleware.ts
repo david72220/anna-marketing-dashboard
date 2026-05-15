@@ -12,8 +12,8 @@ export async function middleware(request: NextRequest) {
             return NextResponse.next();
         }
 
-        // Le endpoint de collecte utilise CRON_SECRET, pas la session
-        if (pathname === "/api/social/collect") {
+        // Les endpoints sociaux utilisent CRON_SECRET ou sont en lecture seule
+        if (pathname === "/api/social/collect" || pathname === "/api/social/metrics") {
             return NextResponse.next();
         }
 

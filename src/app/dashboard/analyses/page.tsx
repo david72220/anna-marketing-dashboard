@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import {
-    LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+    LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Brush,
 } from "recharts";
 
 interface Analysis {
@@ -32,6 +32,18 @@ interface Snapshot {
     totalLikes: number;
     totalComments: number;
     date: string;
+}
+
+interface VideoMetric {
+    id: number;
+    platform: string;
+    metricType: string;
+    value: number;
+    date: string;
+    owner: string;
+    videoId: string | null;
+    videoTitle: string | null;
+    createdAt: string;
 }
 
 const networks = [
@@ -176,12 +188,94 @@ function KPISection({ platformKeys, snapshots }: { platformKeys: string[]; snaps
     );
 }
 
+function VideoChart({ metrics }: { metrics: VideoMetric[] }) {
+    const [selectedVideo, setSelectedVideo] = useState<string | null>(null);
+
+    const videoData = useMemo(() => {
+        const videoMap = new Map<string, { title: string; videoId: string; views: number; likes: number; comments: number }>();
+        for (const m of metrics) {
+            if (!m.videoId) continue;
+            if (!videoMap.has(m.videoId)) {
+                videoMap.set(m.videoId, { title: m.videoTitle || m.videoId, videoId: m.videoId, views: 0, likes: 0, comments: 0 });
+            }
+            const entry = videoMap.get(m.videoId)!;
+            if (m.metricType === "views" && m.value > entry.views) entry.views = m.value;
+            if (m.metricType === "likes" && m.value > entry.likes) entry.likes = m.value;
+            if (m.metricType === "comments" && m.value > entry.comments) entry.comments = m.value;
+        }
+        return [...videoMap.values()].sort((a, b) => b.views - a.views);
+    }, [metrics]);
+
+    if (videoData.length === 0) return null;
+
+    const chartData = videoData.map((v) => ({
+        name: v.title.length > 25 ? v.title.slice(0, 22) + "…" : v.title,
+        fullName: v.title,
+        videoId: v.videoId,
+        vues: v.views,
+        likes: v.likes,
+        commentaires: v.comments,
+    }));
+
+    const handleClick = (data: { payload?: { videoId?: string } }) => {
+        if (data?.payload?.videoId) {
+            window.open(`https://youtube.com/watch?v=${data.payload.videoId}`, "_blank");
+        }
+    };
+
+    const selected = selectedVideo ? videoData.find((v) => v.videoId === selectedVideo) : null;
+
+    return (
+        <div className="mt-4 border-t border-warm pt-4">
+            <p className="text-sm font-semibold text-brandtext mb-1">🎥 Vues par vidéo YouTube</p>
+            <p className="text-[11px] text-brandmuted mb-3">Cliquez sur une barre pour ouvrir la vidéo. Utilisez le sélecteur pour zoomer.</p>
+
+            <ResponsiveContainer width="100%" height={videoData.length > 8 ? 350 : Math.max(200, videoData.length * 32)}>
+                <BarChart data={chartData} layout="vertical" margin={{ left: 10, right: 20, top: 5, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#EDE4D8" />
+                    <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={(v: number) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)} />
+                    <YAxis type="category" dataKey="name" width={160} tick={{ fontSize: 10 }} />
+                    <Tooltip
+                        formatter={(v: number, name: string) => [v.toLocaleString("fr-FR"), name]}
+                        labelFormatter={(_, payload) => payload?.[0]?.payload?.fullName || ""}
+                    />
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                    <Brush dataKey="name" height={20} stroke="#9B7D96" travellerWidth={6} />
+                    <Bar dataKey="vues" fill="#C8A5A5" cursor="pointer" onClick={handleClick} />
+                    <Bar dataKey="likes" fill="#9B7D96" cursor="pointer" onClick={handleClick} />
+                    <Bar dataKey="commentaires" fill="#6B8F71" cursor="pointer" onClick={handleClick} />
+                </BarChart>
+            </ResponsiveContainer>
+
+            {selected && (
+                <div className="mt-2 bg-cream rounded-lg p-3">
+                    <p className="text-sm font-medium text-brandtext">{selected.title}</p>
+                    <div className="flex gap-4 mt-1 text-xs text-brandmuted">
+                        <span>{selected.views.toLocaleString("fr-FR")} vues</span>
+                        <span>{selected.likes.toLocaleString("fr-FR")} likes</span>
+                        <span>{selected.comments.toLocaleString("fr-FR")} commentaires</span>
+                    </div>
+                    <a
+                        href={`https://youtube.com/watch?v=${selected.videoId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-mauve hover:underline mt-1 inline-block"
+                    >
+                        Ouvrir sur YouTube →
+                    </a>
+                </div>
+            )}
+        </div>
+    );
+}
+
 export default function AnalysesPage() {
     const [analyses, setAnalyses] = useState<Analysis[]>([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState("all");
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [snapshots, setSnapshots] = useState<Record<string, Snapshot[]>>({});
+    const [videoMetrics, setVideoMetrics] = useState<Record<string, VideoMetric[]>>({});
 
     const [selectedNetworks, setSelectedNetworks] = useState<string[]>([]);
     const [prompt, setPrompt] = useState("");
@@ -199,7 +293,10 @@ export default function AnalysesPage() {
     useEffect(() => {
         fetch("/api/social/metrics")
             .then((r) => r.json())
-            .then((data) => { if (data.snapshots) setSnapshots(data.snapshots); })
+            .then((data) => {
+                if (data.snapshots) setSnapshots(data.snapshots);
+                if (data.metrics) setVideoMetrics(data.metrics);
+            })
             .catch(() => { });
     }, []);
 
@@ -392,6 +489,11 @@ export default function AnalysesPage() {
 
                                 {/* KPI charts for analyzed platforms */}
                                 <KPISection platformKeys={getPlatformKeys(selected.plateforme)} snapshots={snapshots} />
+
+                                {/* Video chart for YouTube */}
+                                {getPlatformKeys(selected.plateforme).some((k) => k.includes("youtube") && videoMetrics[k]?.length > 0) && (
+                                    <VideoChart metrics={videoMetrics[getPlatformKeys(selected.plateforme).find((k) => k.includes("youtube")) || ""]} />
+                                )}
 
                                 <Section label="Points Forts" content={selected.pointsForts} />
                                 <Section label="Axes d'Amélioration" content={selected.axesAmelioration} />
