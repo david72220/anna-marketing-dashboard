@@ -1,6 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
+import {
+    LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+} from "recharts";
 
 interface Analysis {
     id: string;
@@ -45,6 +48,13 @@ const platformLabels: Record<string, string> = {
     tiktok: "TikTok",
 };
 
+const platformColors: Record<string, string> = {
+    youtube: "#C8A5A5",
+    instagram: "#9B7D96",
+    tiktok: "#6B8F71",
+    facebook: "#5B7FA5",
+};
+
 function ScoreBadge({ label, value, color }: { label: string; value: string; color: string }) {
     const num = parseFloat(value);
     const display = isNaN(num) ? value || "—" : `${Math.round(num)}/10`;
@@ -66,50 +76,101 @@ function Section({ label, content }: { label: string; content: string }) {
     );
 }
 
-function KPICard({ label, value, prev, icon }: { label: string; value: number; prev?: number; icon: string }) {
-    const diff = prev && prev !== 0 ? value - prev : null;
-    const pct = diff !== null && prev !== 0 ? ((diff / prev) * 100).toFixed(1) : null;
+function formatNum(v: number) {
+    if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
+    if (v >= 1_000) return `${(v / 1_000).toFixed(1)}k`;
+    return v.toLocaleString("fr-FR");
+}
+
+function KPIChart({
+    title,
+    dataKey,
+    platforms,
+    snapshots,
+}: {
+    title: string;
+    dataKey: "followers" | "totalViews" | "totalLikes";
+    platforms: { key: string; platform: string; color: string; label: string }[];
+    snapshots: Record<string, Snapshot[]>;
+}) {
+    const chartData = useMemo(() => {
+        const dateMap = new Map<string, Record<string, number>>();
+        for (const p of platforms) {
+            const snaps = snapshots[p.key];
+            if (!snaps) continue;
+            for (const s of snaps) {
+                const dateStr = new Date(s.date).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" });
+                const entry = dateMap.get(dateStr) || {};
+                entry[p.key] = s[dataKey];
+                dateMap.set(dateStr, entry);
+            }
+        }
+        const sorted = [...dateMap.entries()].reverse();
+        return sorted.map(([date, vals]) => ({ date, ...vals }));
+    }, [platforms, snapshots, dataKey]);
+
+    if (chartData.length === 0) return null;
+
     return (
-        <div className="bg-white rounded-lg p-3 border border-warm">
-            <p className="text-[11px] text-brandmuted mb-1">{icon} {label}</p>
-            <p className="text-lg font-bold text-brandtext">{value.toLocaleString("fr-FR")}</p>
-            {diff !== null && pct !== null && (
-                <p className={`text-[11px] mt-0.5 ${diff >= 0 ? "text-brandgreen" : "text-rose"}`}>
-                    {diff >= 0 ? "+" : ""}{diff.toLocaleString("fr-FR")} ({diff >= 0 ? "+" : ""}{pct}%)
-                </p>
-            )}
+        <div className="bg-cream rounded-lg p-3">
+            <p className="text-xs font-medium text-brandmuted mb-2">{title}</p>
+            <ResponsiveContainer width="100%" height={180}>
+                <LineChart data={chartData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#EDE4D8" />
+                    <XAxis dataKey="date" tick={{ fontSize: 10 }} tickLine={false} />
+                    <YAxis tick={{ fontSize: 10 }} tickFormatter={formatNum} width={45} />
+                    <Tooltip formatter={(v: number) => v?.toLocaleString("fr-FR")} />
+                    <Legend iconType="line" wrapperStyle={{ fontSize: 11 }} />
+                    {platforms.map((p) => (
+                        <Line
+                            key={p.key}
+                            type="monotone"
+                            dataKey={p.key}
+                            stroke={p.color}
+                            name={p.label}
+                            strokeWidth={2}
+                            dot={chartData.length < 15}
+                        />
+                    ))}
+                </LineChart>
+            </ResponsiveContainer>
         </div>
     );
 }
 
 function KPISection({ platformKeys, snapshots }: { platformKeys: string[]; snapshots: Record<string, Snapshot[]> }) {
-    const relevantKeys = platformKeys.filter((k) => snapshots[k]?.length > 0);
-    if (relevantKeys.length === 0) return null;
+    const platforms = useMemo(() => {
+        return platformKeys
+            .filter((k) => snapshots[k]?.length > 0)
+            .map((k) => {
+                const platform = snapshots[k][0].platform;
+                return {
+                    key: k,
+                    platform,
+                    color: platformColors[platform] || "#9B7D96",
+                    label: platformLabels[platform] || platform,
+                };
+            });
+    }, [platformKeys, snapshots]);
+
+    if (platforms.length === 0) {
+        return (
+            <div className="mt-4 border-t border-warm pt-4">
+                <p className="text-sm font-semibold text-brandtext mb-2">📊 KPI des réseaux analysés</p>
+                <p className="text-xs text-brandmuted">Aucune donnée KPI disponible pour ces réseaux. Lancez une collecte depuis la page KPI réseaux.</p>
+            </div>
+        );
+    }
 
     return (
         <div className="mt-4 border-t border-warm pt-4">
-            <p className="text-sm font-semibold text-brandtext mb-3">📊 KPI des réseaux analysés</p>
-            <div className="space-y-4">
-                {relevantKeys.map((key) => {
-                    const snaps = snapshots[key];
-                    const latest = snaps[0];
-                    const prev = snaps[1];
-                    const label = platformLabels[latest.platform] || latest.platform;
-                    return (
-                        <div key={key} className="bg-cream rounded-lg p-3">
-                            <p className="text-xs font-medium text-brandmuted mb-2">
-                                {label} — {latest.owner}
-                                <span className="ml-2 text-[10px] opacity-60">mis à jour {new Date(latest.date).toLocaleDateString("fr-FR")}</span>
-                            </p>
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                                <KPICard label="Abonnés" value={latest.followers} prev={prev?.followers} icon="👥" />
-                                <KPICard label="Vues totales" value={latest.totalViews} prev={prev?.totalViews} icon="👁️" />
-                                <KPICard label="Likes" value={latest.totalLikes} prev={prev?.totalLikes} icon="❤️" />
-                                <KPICard label="Commentaires" value={latest.totalComments} prev={prev?.totalComments} icon="💬" />
-                            </div>
-                        </div>
-                    );
-                })}
+            <p className="text-sm font-semibold text-brandtext mb-3">📊 Évolution des KPI</p>
+            <KPIChart title="Abonnés" dataKey="followers" platforms={platforms} snapshots={snapshots} />
+            <div className="mt-3">
+                <KPIChart title="Vues totales" dataKey="totalViews" platforms={platforms} snapshots={snapshots} />
+            </div>
+            <div className="mt-3">
+                <KPIChart title="Likes" dataKey="totalLikes" platforms={platforms} snapshots={snapshots} />
             </div>
         </div>
     );
@@ -329,7 +390,7 @@ export default function AnalysesPage() {
                                     <ScoreBadge label="Engagement" value={selected.scoreEngagement} color="bg-amber-50" />
                                 </div>
 
-                                {/* KPI for analyzed platforms */}
+                                {/* KPI charts for analyzed platforms */}
                                 <KPISection platformKeys={getPlatformKeys(selected.plateforme)} snapshots={snapshots} />
 
                                 <Section label="Points Forts" content={selected.pointsForts} />
