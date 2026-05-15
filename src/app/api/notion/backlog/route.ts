@@ -89,6 +89,27 @@ export async function POST(request: Request) {
             return NextResponse.json(backlog);
         }
 
+        // Appel au webhook N8N pour générer des suggestions via l'automatisation
+        const webhookUrl = process.env.N8N_WEBHOOK_BACKLOG;
+        let n8nResponse = null;
+
+        if (webhookUrl) {
+            try {
+                const n8nRes = await fetch(webhookUrl, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        prompt: prompt.trim(),
+                        questions: questions || "",
+                    }),
+                });
+                n8nResponse = await n8nRes.json().catch(() => ({ status: "triggered" }));
+            } catch (webhookError) {
+                console.error("Erreur webhook N8N backlog:", webhookError);
+                // On continue avec le scoring local si le webhook échoue
+            }
+        }
+
         const suggestions = generateSuggestions(backlog, prompt);
 
         return NextResponse.json({
@@ -96,6 +117,8 @@ export async function POST(request: Request) {
             questions: questions || "",
             count: suggestions.length,
             suggestions,
+            status: "En cours",
+            n8nResponse,
         });
     } catch (error) {
         console.error("Erreur suggestion backlog:", error);

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { queryDatabase, getPageTitle, getPropertyText } from "@/lib/notion";
 
 const DB_ID = process.env.NOTION_VEILLE_DB_ID!;
+const N8N_WEBHOOK = process.env.N8N_WEBHOOK_VEILLE;
 
 interface VeilleItem {
     id: string;
@@ -47,24 +48,44 @@ export async function GET() {
 
 export async function POST(request: Request) {
     try {
-        const { prompt } = await request.json();
-        const veille = await fetchVeille();
+        const body = await request.json();
+        const { prompt, concurrents, plateformes } = body;
 
-        if (!prompt || !prompt.trim()) {
-            // Recherche automatique par mots-clés : retourner tout
-            return NextResponse.json(veille);
+        if (!N8N_WEBHOOK) {
+            return NextResponse.json({ error: "Webhook N8N non configuré" }, { status: 500 });
         }
 
-        // Filtre basique par mots du prompt (approche simple en attendant l'IA)
-        const terms = prompt.toLowerCase().split(/\s+/).filter((t: string) => t.length > 2);
-        const filtered = veille.filter((v: VeilleItem) => {
-            const text = `${v.title} ${v.concurrent} ${v.plateforme} ${v.typeContenu} ${v.performance} ${v.lecons}`.toLowerCase();
-            return terms.some((term: string) => text.includes(term));
+        if (!prompt || !prompt.trim()) {
+            return NextResponse.json({ error: "Prompt requis" }, { status: 400 });
+        }
+
+        // Appeler le webhook N8N pour déclencher la veille concurrentielle
+        const n8nRes = await fetch(N8N_WEBHOOK, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                prompt: prompt.trim(),
+                concurrents: concurrents || [],
+                plateformes: plateformes || [],
+            }),
         });
 
-        return NextResponse.json(filtered.length > 0 ? filtered : veille);
+        if (!n8nRes.ok) {
+            const errText = await n8nRes.text().catch(() => "");
+            console.error("Erreur webhook N8N veille:", n8nRes.status, errText);
+            return NextResponse.json({ error: "Erreur lors du déclenchement de la veille N8N" }, { status: 502 });
+        }
+
+        const n8nData = await n8nRes.json().catch(() => ({}));
+
+        return NextResponse.json({
+            success: true,
+            message: "Veille concurrentielle lancée avec succès",
+            status: "En cours",
+            n8nResponse: n8nData,
+        });
     } catch (error) {
         console.error("Erreur POST veille:", error);
-        return NextResponse.json({ error: "Erreur lors de la recherche de veille" }, { status: 500 });
+        return NextResponse.json({ error: "Erreur lors du lancement de la veille" }, { status: 500 });
     }
 }

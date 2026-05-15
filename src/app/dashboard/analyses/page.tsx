@@ -28,8 +28,10 @@ export default function AnalysesPage() {
     // New analysis form state
     const [selectedNetworks, setSelectedNetworks] = useState<string[]>([]);
     const [keywords, setKeywords] = useState("");
+    const [prompt, setPrompt] = useState("");
     const [launching, setLaunching] = useState(false);
     const [launchMessage, setLaunchMessage] = useState<string | null>(null);
+    const [inProgress, setInProgress] = useState(false);
 
     useEffect(() => {
         fetch("/api/notion/analyses")
@@ -59,6 +61,7 @@ export default function AnalysesPage() {
         }
         setLaunching(true);
         setLaunchMessage(null);
+        setInProgress(true);
         try {
             const res = await fetch("/api/notion/analyses", {
                 method: "POST",
@@ -66,16 +69,26 @@ export default function AnalysesPage() {
                 body: JSON.stringify({
                     networks: selectedNetworks,
                     keywords: kwList,
+                    prompt: prompt.trim() || undefined,
                 }),
             });
             if (!res.ok) throw new Error("Erreur " + res.status);
             setLaunchMessage("Analyse lancée avec succès ! Les résultats apparaîtront sous peu.");
             setSelectedNetworks([]);
             setKeywords("");
+            setPrompt("");
+            // Rafraîchir la liste après un court délai
+            setTimeout(() => {
+                fetch("/api/notion/analyses")
+                    .then((r) => r.json())
+                    .then((data) => setAnalyses(Array.isArray(data) ? data : []))
+                    .catch(() => { });
+            }, 1500);
         } catch (e: any) {
             setLaunchMessage("Erreur lors du lancement : " + (e.message || "inconnue"));
         } finally {
             setLaunching(false);
+            setTimeout(() => setInProgress(false), 4000);
         }
     };
 
@@ -124,7 +137,7 @@ export default function AnalysesPage() {
                 </div>
                 <div className="mb-4">
                     <label className="block text-sm font-medium text-brandtext mb-1">
-                        Écosystème de mots-clés (10–15 recommandés, séparés par des virgules)
+                        Mots-clés (min. 3, séparés par des virgules)
                     </label>
                     <textarea
                         className="w-full rounded-lg border border-warm bg-white px-4 py-3 text-sm text-brandtext placeholder-brandmuted/50 focus:outline-none focus:ring-2 focus:ring-mauve"
@@ -137,6 +150,18 @@ export default function AnalysesPage() {
                         {keywords.split(",").filter((k) => k.trim().length > 0).length} mot(s)-clé(s) saisi(s)
                     </p>
                 </div>
+                <div className="mb-4">
+                    <label className="block text-sm font-medium text-brandtext mb-1">
+                        Contexte / consigne (optionnel)
+                    </label>
+                    <textarea
+                        className="w-full rounded-lg border border-warm bg-white px-4 py-3 text-sm text-brandtext placeholder-brandmuted/50 focus:outline-none focus:ring-2 focus:ring-mauve"
+                        rows={2}
+                        placeholder="ex: Focalise-toi sur le contenu vidéo pour parents d'adolescents..."
+                        value={prompt}
+                        onChange={(e) => setPrompt(e.target.value)}
+                    />
+                </div>
                 <div className="flex items-center gap-4">
                     <button
                         onClick={handleLaunch}
@@ -145,6 +170,9 @@ export default function AnalysesPage() {
                     >
                         {launching ? "Lancement…" : "🚀 Lancer l'analyse"}
                     </button>
+                    {inProgress && (
+                        <span className="text-sm text-mauve animate-pulse">⏳ Analyse en cours…</span>
+                    )}
                     {launchMessage && (
                         <span className={`text-sm ${launchMessage.includes("succès") ? "text-brandgreen" : "text-rose"}`}>
                             {launchMessage}

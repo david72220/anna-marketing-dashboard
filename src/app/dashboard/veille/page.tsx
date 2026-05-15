@@ -20,6 +20,8 @@ export default function VeillePage() {
     const [filter, setFilter] = useState("all");
     const [prompt, setPrompt] = useState("");
     const [searching, setSearching] = useState(false);
+    const [inProgress, setInProgress] = useState(false);
+    const [statusMessage, setStatusMessage] = useState("");
 
     const loadData = async () => {
         setLoading(true);
@@ -40,6 +42,8 @@ export default function VeillePage() {
 
     const handleSearch = async () => {
         setSearching(true);
+        setInProgress(false);
+        setStatusMessage("");
         try {
             if (!prompt.trim()) {
                 // Recherche automatique par mots-clés : recharge toutes les données
@@ -53,7 +57,17 @@ export default function VeillePage() {
                     body: JSON.stringify({ prompt }),
                 });
                 const data = await r.json();
-                setItems(Array.isArray(data) ? data : []);
+                if (data.status === "En cours") {
+                    setInProgress(true);
+                    setStatusMessage(data.message || "Analyse lancée via N8N");
+                    // Rafraîchir la liste après un délai pour laisser le temps à N8N de créer les entrées
+                    setTimeout(() => {
+                        loadData();
+                        setInProgress(false);
+                    }, 4000);
+                } else {
+                    setItems(Array.isArray(data) ? data : []);
+                }
             }
         } catch {
             // en cas d'erreur, garder les items actuels
@@ -108,13 +122,21 @@ export default function VeillePage() {
                 ))}
             </div>
 
+            {inProgress && (
+                <div className="mb-6 bg-mauve/10 rounded-xl border border-mauve/30 p-6 text-center animate-pulse">
+                    <p className="text-mauve font-medium text-lg">⏳ Analyse en cours…</p>
+                    <p className="text-brandmuted text-sm mt-1">{statusMessage}</p>
+                    <p className="text-brandmuted text-xs mt-2">Les résultats apparaîtront dans Notion et se rafraîchiront automatiquement.</p>
+                </div>
+            )}
+
             {searching && (
                 <div className="flex items-center justify-center py-12">
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-mauve"></div>
                 </div>
             )}
 
-            {!searching && filtered.length === 0 ? (
+            {!searching && !inProgress && filtered.length === 0 ? (
                 <div className="bg-white rounded-xl border border-warm p-12 text-center">
                     <p className="text-brandmuted text-lg">Aucune donnée de veille disponible</p>
                     <p className="text-brandmuted text-sm mt-2">Les automatisations rempliront cette section</p>

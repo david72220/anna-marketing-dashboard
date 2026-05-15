@@ -25,6 +25,8 @@ export default function BacklogPage() {
     const [suggestLoading, setSuggestLoading] = useState(false);
     const [suggestions, setSuggestions] = useState<BacklogItem[]>([]);
     const [suggestMode, setSuggestMode] = useState(false);
+    const [inProgress, setInProgress] = useState(false);
+    const [statusMessage, setStatusMessage] = useState("");
 
     useEffect(() => {
         fetch("/api/notion/backlog")
@@ -35,6 +37,8 @@ export default function BacklogPage() {
 
     const handleGenerate = async () => {
         setSuggestLoading(true);
+        setInProgress(false);
+        setStatusMessage("");
         try {
             const res = await fetch("/api/notion/backlog", {
                 method: "POST",
@@ -42,10 +46,22 @@ export default function BacklogPage() {
                 body: JSON.stringify({ prompt, questions: questions || undefined }),
             });
             const data = await res.json();
+
+            if (data.status === "En cours") {
+                setInProgress(true);
+                setStatusMessage("⏳ Analyse en cours… Les suggestions sont en cours de génération via l'automatisation. La liste sera rafraîchie dans quelques secondes.");
+                // Rafraîchir après un délai pour laisser le temps au workflow
+                setTimeout(() => {
+                    window.location.reload();
+                }, 4000);
+                return;
+            }
+
             setSuggestions(Array.isArray(data.suggestions) ? data.suggestions : []);
             setSuggestMode(true);
         } catch {
             setSuggestions([]);
+            setStatusMessage("Une erreur est survenue lors de la génération.");
         } finally {
             setSuggestLoading(false);
         }
@@ -98,15 +114,20 @@ export default function BacklogPage() {
                             onChange={(e) => setQuestions(e.target.value)}
                         />
                     </div>
+                    {inProgress && statusMessage && (
+                        <div className="rounded-lg border border-mauve bg-mauve-50 p-3 text-sm text-mauve animate-pulse">
+                            {statusMessage}
+                        </div>
+                    )}
                     <div className="flex items-center gap-3">
                         <button
                             onClick={handleGenerate}
-                            disabled={suggestLoading}
+                            disabled={suggestLoading || inProgress}
                             className="px-5 py-2.5 rounded-lg bg-mauve text-cream text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
                         >
                             {suggestLoading ? "Génération en cours..." : "Générer des suggestions"}
                         </button>
-                        {suggestMode && (
+                        {suggestMode && !inProgress && (
                             <button
                                 onClick={() => setSuggestMode(false)}
                                 className="px-4 py-2.5 rounded-lg border border-warm text-brandtext text-sm hover:bg-warm transition-colors"
@@ -127,7 +148,13 @@ export default function BacklogPage() {
                 </div>
             )}
 
-            {displayItems.length === 0 ? (
+            {inProgress ? (
+                <div className="bg-cream rounded-xl border border-warm p-12 text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-mauve mx-auto mb-4"></div>
+                    <p className="text-brandmuted text-lg">Analyse en cours…</p>
+                    <p className="text-brandmuted text-sm mt-2">Le workflow N8N génère des suggestions. La page se rafraîchira automatiquement.</p>
+                </div>
+            ) : displayItems.length === 0 ? (
                 <div className="bg-cream rounded-xl border border-warm p-12 text-center">
                     <p className="text-brandmuted text-lg">Aucune suggestion disponible</p>
                     <p className="text-brandmuted text-sm mt-2">Les automatisations généreront des suggestions de contenu</p>
