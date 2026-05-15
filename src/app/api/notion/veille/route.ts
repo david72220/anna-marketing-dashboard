@@ -2,18 +2,26 @@ import { NextResponse } from "next/server";
 import { queryDatabase, getPageTitle, getPropertyText } from "@/lib/notion";
 
 const DB_ID = process.env.NOTION_VEILLE_DB_ID!;
+const ANALYSES_DB_ID = process.env.NOTION_ANALYSES_DB_ID!;
 const N8N_WEBHOOK = process.env.N8N_WEBHOOK_VEILLE;
 
 interface VeilleItem {
     id: string;
     title: string;
-    concurrent: string;
-    plateforme: string;
-    typeContenu: string;
-    performance: string;
-    lecons: string;
+    themesDominants: string;
+    anglesNonExploites: string;
+    formatsPerformants: string;
+    motsCles: string;
+    concurrents: string;
+    recommandations: string;
+    resume: string;
+    dateVeille: string;
     statut: string;
-    date: string;
+    plateforme: string;
+    pointsFortsConcurrents: string;
+    produitsConcurrents: string;
+    positionnementAnna: string;
+    motsClesUtilises: string;
     createdTime: string;
 }
 
@@ -24,22 +32,64 @@ async function fetchVeille(): Promise<VeilleItem[]> {
         return {
             id: page.id as string,
             title: getPageTitle(page),
-            concurrent: getPropertyText(props["Concurrent"] || {}),
-            plateforme: getPropertyText(props["Plateforme"] || {}),
-            typeContenu: getPropertyText(props["Type Contenu"] || {}),
-            performance: getPropertyText(props["Performance"] || {}),
-            lecons: getPropertyText(props["Leçons"] || {}),
+            themesDominants: getPropertyText(props["Themes Dominants"] || {}),
+            anglesNonExploites: getPropertyText(props["Angles Non Exploites"] || {}),
+            formatsPerformants: getPropertyText(props["Formats Performants"] || {}),
+            motsCles: getPropertyText(props["Mots Cles"] || {}),
+            concurrents: getPropertyText(props["Concurrents"] || {}),
+            recommandations: getPropertyText(props["Recommandations"] || {}),
+            resume: getPropertyText(props["Resume"] || {}),
+            dateVeille: getPropertyText(props["Date Veille"] || {}),
             statut: getPropertyText(props["Statut"] || {}),
-            date: getPropertyText(props["Date"] || {}),
+            plateforme: getPropertyText(props["Plateforme"] || {}),
+            pointsFortsConcurrents: getPropertyText(props["Points Forts Concurrents"] || {}),
+            produitsConcurrents: getPropertyText(props["Produits Concurrents"] || {}),
+            positionnementAnna: getPropertyText(props["Positionnement Anna"] || {}),
+            motsClesUtilises: getPropertyText(props["Mots Cles Utilises"] || {}),
             createdTime: page.created_time as string,
         };
     });
 }
 
+async function extractKeywordsFromAnalyses(): Promise<string[]> {
+    if (!ANALYSES_DB_ID) return [];
+    try {
+        const results = await queryDatabase(ANALYSES_DB_ID);
+        const allKeywords: string[] = [];
+
+        for (const page of results) {
+            const props = (page.properties || {}) as Record<string, Record<string, unknown>>;
+            const ecoText = getPropertyText(props["Ecosystème Mots-clés"] || props["Ecosysteme Mots-cles"] || {});
+            if (ecoText) {
+                ecoText.split(",").forEach((k: string) => {
+                    const trimmed = k.trim();
+                    if (trimmed) allKeywords.push(trimmed);
+                });
+            }
+            const hashText = getPropertyText(props["Hashtags"] || {});
+            if (hashText) {
+                hashText.split(/[#,\s]+/).forEach((h: string) => {
+                    const trimmed = h.trim().replace(/^#/, "");
+                    if (trimmed && trimmed.length > 2) allKeywords.push(trimmed);
+                });
+            }
+        }
+
+        const unique = [...new Set(allKeywords)];
+        return unique.slice(0, 15);
+    } catch {
+        return [];
+    }
+}
+
 export async function GET() {
     try {
         const veille = await fetchVeille();
-        return NextResponse.json(veille);
+        return NextResponse.json(veille, {
+            headers: {
+                "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+            },
+        });
     } catch (error) {
         console.error("Erreur Notion veille:", error);
         return NextResponse.json({ error: "Erreur lors de la récupération de la veille" }, { status: 500 });
@@ -55,18 +105,17 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: "Webhook N8N non configuré" }, { status: 500 });
         }
 
-        if (!prompt || !prompt.trim()) {
-            return NextResponse.json({ error: "Prompt requis" }, { status: 400 });
-        }
+        // Extract keywords from recent analyses to enrich the veille
+        const keywords = await extractKeywordsFromAnalyses();
 
-        // Appeler le webhook N8N pour déclencher la veille concurrentielle
         const n8nRes = await fetch(N8N_WEBHOOK, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                prompt: prompt.trim(),
+                prompt: prompt?.trim() || "",
                 concurrents: concurrents || [],
-                plateformes: plateformes || [],
+                plateformes: plateformes || ["YouTube", "TikTok", "Instagram"],
+                keywords,
             }),
         });
 
@@ -82,6 +131,7 @@ export async function POST(request: Request) {
             success: true,
             message: "Veille concurrentielle lancée avec succès",
             status: "En cours",
+            keywords,
             n8nResponse: n8nData,
         });
     } catch (error) {

@@ -15,11 +15,20 @@ interface Analysis {
 interface VeilleItem {
     id: string;
     title: string;
-    concurrent: string;
-    plateforme: string;
-    typeContenu: string;
-    performance: string;
+    themesDominants: string;
+    anglesNonExploites: string;
+    formatsPerformants: string;
+    motsCles: string;
+    concurrents: string;
+    recommandations: string;
+    resume: string;
+    dateVeille: string;
     statut: string;
+    plateforme: string;
+    pointsFortsConcurrents: string;
+    produitsConcurrents: string;
+    positionnementAnna: string;
+    motsClesUtilises: string;
 }
 
 interface BacklogItem {
@@ -207,12 +216,14 @@ export default function DashboardPage() {
                         <div className="space-y-3">
                             {recentVeille.map((v) => (
                                 <div key={v.id} className="flex items-center justify-between py-2 border-b border-warm last:border-0">
-                                    <div>
-                                        <p className="font-medium text-brandtext text-sm">{v.title}</p>
-                                        <p className="text-xs text-brandmuted">{v.concurrent} • {v.plateforme}</p>
+                                    <div className="min-w-0 flex-1">
+                                        <p className="font-medium text-brandtext text-sm truncate">{v.title || "Veille sans titre"}</p>
+                                        <p className="text-xs text-brandmuted">
+                                            {v.plateforme}{v.dateVeille ? ` • ${v.dateVeille}` : ""}
+                                        </p>
                                     </div>
-                                    <span className="text-xs bg-rose-100 text-rose-700 px-2 py-1 rounded-full">
-                                        {v.statut}
+                                    <span className={`text-xs px-2 py-1 rounded-full ${(v.statut?.toLowerCase().includes("termin")) ? "bg-brandgreen/20 text-brandgreen" : "bg-rose/20 text-rose"}`}>
+                                        {v.statut || "En cours"}
                                     </span>
                                 </div>
                             ))}
