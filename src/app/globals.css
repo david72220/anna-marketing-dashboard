@@ -4,25 +4,25 @@
 
 @layer base {
     :root {
-        --background: 0 0% 100%;
-        --foreground: 222.2 84% 4.9%;
-        --card: 0 0% 100%;
-        --card-foreground: 222.2 84% 4.9%;
-        --popover: 0 0% 100%;
-        --popover-foreground: 222.2 84% 4.9%;
-        --primary: 227 68% 57%;
-        --primary-foreground: 210 40% 98%;
-        --secondary: 210 40% 96.1%;
-        --secondary-foreground: 222.2 47.4% 11.2%;
-        --muted: 210 40% 96.1%;
-        --muted-foreground: 215.4 16.3% 46.9%;
-        --accent: 210 40% 96.1%;
-        --accent-foreground: 222.2 47.4% 11.2%;
-        --destructive: 0 84.2% 60.2%;
-        --destructive-foreground: 210 40% 98%;
-        --border: 214.3 31.8% 91.4%;
-        --input: 214.3 31.8% 91.4%;
-        --ring: 227 68% 57%;
+        --background: 30 33% 97%;
+        --foreground: 15 14% 21%;
+        --card: 30 33% 97%;
+        --card-foreground: 15 14% 21%;
+        --popover: 30 33% 97%;
+        --popover-foreground: 15 14% 21%;
+        --primary: 310 15% 54%;
+        --primary-foreground: 30 33% 97%;
+        --secondary: 28 33% 90%;
+        --secondary-foreground: 15 14% 21%;
+        --muted: 28 33% 90%;
+        --muted-foreground: 15 10% 43%;
+        --accent: 28 33% 90%;
+        --accent-foreground: 15 14% 21%;
+        --destructive: 0 60% 55%;
+        --destructive-foreground: 30 33% 97%;
+        --border: 28 33% 90%;
+        --input: 28 33% 90%;
+        --ring: 310 15% 54%;
         --radius: 0.5rem;
     }
 }
@@ -33,6 +33,15 @@
     }
 
     body {
-        @apply bg-background text-foreground;
+        @apply bg-cream text-brandtext font-body antialiased;
+    }
+
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6 {
+        @apply font-display;
     }
 }

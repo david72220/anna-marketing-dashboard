@@ -12,8 +12,8 @@ export const authOptions: NextAuthOptions = {
             async authorize(credentials) {
                 if (!credentials?.email || !credentials?.password) return null;
 
-                const validEmail = process.env.ADMIN_EMAIL || "anna@anna-ollivier-psy.com";
-                const validPassword = process.env.ADMIN_PASSWORD || "ChangeMe123!";
+                const validEmail = process.env.ADMIN_EMAIL || "anna-ollivier-psy";
+                const validPassword = process.env.APP_PASSWORD || "ChangeMe123!";
 
                 if (credentials.email === validEmail && credentials.password === validPassword) {
                     return {

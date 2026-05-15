@@ -56,10 +56,10 @@ const platformIcons: Record<string, string> = {
 };
 
 const platformColors: Record<string, string> = {
-    youtube: "bg-red-50 border-red-200 text-red-700",
-    tiktok: "bg-pink-50 border-pink-200 text-pink-700",
-    facebook: "bg-blue-50 border-blue-200 text-blue-700",
-    instagram: "bg-purple-50 border-purple-200 text-purple-700",
+    youtube: "bg-rose-50 border-rose-200 text-rose-700",
+    tiktok: "bg-mauve-50 border-mauve-200 text-mauve-700",
+    facebook: "bg-rose-50 border-rose-200 text-rose-700",
+    instagram: "bg-mauve-50 border-mauve-200 text-mauve-700",
 };
 
 const ownerLabels: Record<string, string> = {
@@ -93,8 +93,8 @@ export default function DashboardPage() {
         return (
             <div className="flex items-center justify-center h-full">
                 <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-violet-600 mx-auto"></div>
-                    <p className="mt-4 text-slate-500">Chargement du dashboard...</p>
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-mauve mx-auto"></div>
+                    <p className="mt-4 text-brandmuted">Chargement du dashboard...</p>
                 </div>
             </div>
         );
@@ -104,7 +104,6 @@ export default function DashboardPage() {
     const recentVeille = veille.slice(0, 5);
     const pendingBacklog = backlog.filter((b) => b.statut !== "Terminé").slice(0, 5);
 
-    // Calculer les KPIs par owner
     const getLatestSnapshot = (owner: string, platform: string): SnapshotEntry | null => {
         const key = `${owner}_${platform}`;
         const snaps = metrics?.snapshots?.[key];
@@ -115,61 +114,58 @@ export default function DashboardPage() {
     const annaIg = getLatestSnapshot("anna", "instagram");
     const davidYt = getLatestSnapshot("david", "youtube");
 
-    // Grouper les snapshots par owner
     const owners = ["anna", "david"];
     const platforms = ["youtube", "tiktok", "facebook", "instagram"];
 
     return (
         <div className="p-8">
             <div className="mb-8">
-                <h1 className="text-3xl font-bold text-slate-900">Vue d'ensemble</h1>
-                <p className="text-slate-500 mt-2">Tableau de bord marketing d'Anna OLLIVIER</p>
+                <h1 className="text-3xl font-bold text-brandtext">Vue d'ensemble</h1>
+                <p className="text-brandmuted mt-2">Tableau de bord marketing d'Anna OLLIVIER</p>
             </div>
 
-            {/* KPI Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:gridcols-4 gap-6 mb-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                 <StatCard
                     title="Analyses réalisées"
                     value={String(analyses.length)}
                     icon="🔍"
-                    color="violet"
+                    color="mauve"
                 />
                 <StatCard
                     title="Veille concurrentielle"
                     value={String(veille.length)}
                     icon="👁️"
-                    color="blue"
+                    color="rose"
                 />
                 <StatCard
                     title="Posts en backlog"
                     value={String(pendingBacklog.length)}
                     icon="📝"
-                    color="amber"
+                    color="brandgreen"
                 />
                 <StatCard
                     title="Abonnés YouTube Anna"
                     value={annaYt?.followers?.toLocaleString("fr-FR") || "—"}
                     icon="🎥"
-                    color="red"
+                    color="mauve"
                 />
             </div>
 
-            {/* Dernières analyses */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-                    <h2 className="text-lg font-semibold text-slate-900 mb-4">📋 Dernières Analyses</h2>
+                <div className="bg-cream rounded-xl shadow-sm border border-warm p-6">
+                    <h2 className="text-lg font-semibold text-brandtext mb-4">📋 Dernières Analyses</h2>
                     {recentAnalyses.length === 0 ? (
-                        <p className="text-slate-400 text-sm">Aucune analyse pour le moment</p>
+                        <p className="text-brandmuted text-sm">Aucune analyse pour le moment</p>
                     ) : (
                         <div className="space-y-3">
                             {recentAnalyses.map((a) => (
-                                <div key={a.id} className="flex items-center justify-between py-2 border-b border-slate-100 last:border-0">
+                                <div key={a.id} className="flex items-center justify-between py-2 border-b border-warm last:border-0">
                                     <div>
-                                        <p className="font-medium text-slate-800 text-sm">{a.title}</p>
-                                        <p className="text-xs text-slate-400">{a.plateforme} • {a.dateAnalyse}</p>
+                                        <p className="font-medium text-brandtext text-sm">{a.title}</p>
+                                        <p className="text-xs text-brandmuted">{a.plateforme} • {a.dateAnalyse}</p>
                                     </div>
                                     <div className="flex items-center gap-2">
-                                        <span className="text-xs bg-violet-100 text-violet-700 px-2 py-1 rounded-full">
+                                        <span className="text-xs bg-mauve-100 text-mauve-700 px-2 py-1 rounded-full">
                                             Pertinence: {a.scorePertinence}
                                         </span>
                                     </div>
@@ -179,19 +175,19 @@ export default function DashboardPage() {
                     )}
                 </div>
 
-                <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-                    <h2 className="text-lg font-semibold text-slate-900 mb-4">🔎 Veille Concurrence</h2>
+                <div className="bg-cream rounded-xl shadow-sm border border-warm p-6">
+                    <h2 className="text-lg font-semibold text-brandtext mb-4">🔎 Veille Concurrence</h2>
                     {recentVeille.length === 0 ? (
-                        <p className="text-slate-400 text-sm">Aucune donnée de veille pour le moment</p>
+                        <p className="text-brandmuted text-sm">Aucune donnée de veille pour le moment</p>
                     ) : (
                         <div className="space-y-3">
                             {recentVeille.map((v) => (
-                                <div key={v.id} className="flex items-center justify-between py-2 border-b border-slate-100 last:border-0">
+                                <div key={v.id} className="flex items-center justify-between py-2 border-b border-warm last:border-0">
                                     <div>
-                                        <p className="font-medium text-slate-800 text-sm">{v.title}</p>
-                                        <p className="text-xs text-slate-400">{v.concurrent} • {v.plateforme}</p>
+                                        <p className="font-medium text-brandtext text-sm">{v.title}</p>
+                                        <p className="text-xs text-brandmuted">{v.concurrent} • {v.plateforme}</p>
                                     </div>
-                                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
+                                    <span className="text-xs bg-rose-100 text-rose-700 px-2 py-1 rounded-full">
                                         {v.statut}
                                     </span>
                                 </div>
@@ -201,15 +197,14 @@ export default function DashboardPage() {
                 </div>
             </div>
 
-            {/* Métriques réseaux sociaux par owner */}
             {metrics?.snapshots && Object.keys(metrics.snapshots).length > 0 && (
                 <div className="mt-6 space-y-6">
                     {owners.map((owner) => {
                         const ownerPlatforms = platforms.filter((p) => metrics.snapshots[`${owner}_${p}`]);
                         if (ownerPlatforms.length === 0) return null;
                         return (
-                            <div key={owner} className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-                                <h2 className="text-lg font-semibold text-slate-900 mb-4">
+                            <div key={owner} className="bg-cream rounded-xl shadow-sm border border-warm p-6">
+                                <h2 className="text-lg font-semibold text-brandtext mb-4">
                                     📈 {ownerLabels[owner] || owner} — Réseaux Sociaux
                                 </h2>
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -222,20 +217,20 @@ export default function DashboardPage() {
                                         const viewsDiff = prev ? latest.totalViews - prev.totalViews : 0;
                                         const likesDiff = prev ? (latest.totalLikes || 0) - (prev.totalLikes || 0) : 0;
                                         return (
-                                            <div key={key} className={`rounded-lg p-4 border ${platformColors[platform] || "bg-slate-50 border-slate-200"}`}>
+                                            <div key={key} className={`rounded-lg p-4 border ${platformColors[platform] || "bg-cream border-warm"}`}>
                                                 <div className="flex items-center gap-2">
                                                     <span className="text-xl">{platformIcons[platform] || "🌐"}</span>
-                                                    <p className="text-sm font-medium capitalize">{platform}</p>
+                                                    <p className="text-sm font-medium capitalize text-brandtext">{platform}</p>
                                                 </div>
-                                                <p className="text-2xl font-bold mt-2">{latest.followers.toLocaleString("fr-FR")}</p>
-                                                <p className={`text-sm ${diff >= 0 ? "text-green-600" : "text-red-600"}`}>
+                                                <p className="text-2xl font-bold mt-2 text-brandtext">{latest.followers.toLocaleString("fr-FR")}</p>
+                                                <p className={`text-sm ${diff >= 0 ? "text-brandgreen" : "text-rose"}`}>
                                                     {diff >= 0 ? "+" : ""}{diff} abonnés
                                                 </p>
-                                                <p className="text-xs mt-1 opacity-75">
+                                                <p className="text-xs mt-1 opacity-75 text-brandmuted">
                                                     Vues: {latest.totalViews?.toLocaleString("fr-FR") || "—"}
                                                     {viewsDiff !== 0 && ` (${viewsDiff >= 0 ? "+" : ""}${viewsDiff.toLocaleString("fr-FR")})`}
                                                 </p>
-                                                <p className="text-xs opacity-75">
+                                                <p className="text-xs opacity-75 text-brandmuted">
                                                     ❤️ {latest.totalLikes?.toLocaleString("fr-FR") || "—"}
                                                     {likesDiff !== 0 && ` (${likesDiff >= 0 ? "+" : ""}${likesDiff.toLocaleString("fr-FR")})`}
                                                 </p>
@@ -254,13 +249,12 @@ export default function DashboardPage() {
 
 function StatCard({ title, value, icon, color }: { title: string; value: string; icon: string; color: string }) {
     const colorMap: Record<string, string> = {
-        violet: "bg-violet-50 text-violet-600 border-violet-200",
-        blue: "bg-blue-50 text-blue-600 border-blue-200",
-        amber: "bg-amber-50 text-amber-600 border-amber-200",
-        red: "bg-red-50 text-red-600 border-red-200",
+        mauve: "bg-mauve-50 text-mauve-600 border-mauve-200",
+        rose: "bg-rose-50 text-rose-600 border-rose-200",
+        brandgreen: "bg-brandgreen-50 text-brandgreen-600 border-brandgreen-200",
     };
     return (
-        <div className={`rounded-xl border p-6 ${colorMap[color] || colorMap.violet}`}>
+        <div className={`rounded-xl border p-6 ${colorMap[color] || colorMap.mauve}`}>
             <div className="flex items-center justify-between">
                 <p className="text-sm font-medium opacity-80">{title}</p>
                 <span className="text-2xl">{icon}</span>
