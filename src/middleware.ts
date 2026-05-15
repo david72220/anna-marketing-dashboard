@@ -12,7 +12,9 @@ export async function middleware(request: NextRequest) {
             return NextResponse.next();
         }
 
-        // Les endpoints sociaux utilisent CRON_SECRET ou sont en lecture seule
+        // Les endpoints sociaux sont accessibles :
+        // - /api/social/collect : appelé par Vercel Cron (Bearer CRON_SECRET) ou par le dashboard (session NextAuth)
+        // - /api/social/metrics : donnée publique en lecture seule
         if (pathname === "/api/social/collect" || pathname === "/api/social/metrics") {
             return NextResponse.next();
         }

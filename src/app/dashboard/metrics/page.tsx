@@ -259,10 +259,7 @@ function CollectButton() {
         try {
             const res = await fetch("/api/social/collect", {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${process.env.NEXT_PUBLIC_CRON_SECRET || "dev-mode"}`,
-                },
+                headers: { "Content-Type": "application/json" },
             });
             const json = await res.json();
             if (!res.ok) throw new Error(json.error || "Erreur " + res.status);

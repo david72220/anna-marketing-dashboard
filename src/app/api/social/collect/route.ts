@@ -256,13 +256,17 @@ async function fetchTikTokViaApify(username: string): Promise<TikTokMetrics> {
 // ==========================================
 export async function POST(request: Request) {
     try {
-        // Vérifier le header d'autorisation (cron secret)
+        // Accepter les requêtes du cron Vercel (Bearer CRON_SECRET) ou sans auth (dashboard)
         const authHeader = request.headers.get("authorization");
-        if (authHeader !== `Bearer ${process.env.CRON_SECRET || "dev-mode"}`) {
-            if (process.env.NODE_ENV === "production") {
-                return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+        if (authHeader) {
+            // Cron Vercel : vérifier le CRON_SECRET
+            if (authHeader !== `Bearer ${process.env.CRON_SECRET || "dev-mode"}`) {
+                if (process.env.NODE_ENV === "production") {
+                    return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+                }
             }
         }
+        // Pas de header Authorization = appel depuis le dashboard (autorisé par le middleware)
 
         const today = new Date();
         today.setHours(0, 0, 0, 0);
