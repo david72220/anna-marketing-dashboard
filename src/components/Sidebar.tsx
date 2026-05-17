@@ -59,9 +59,25 @@ export default function Sidebar() {
                     href="https://www.tiktok.com/@anna.ollivier.psy"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-sm text-[#FAF6F1]/60 hover:text-[#FAF6F1] block mb-4"
+                    className="text-sm text-[#FAF6F1]/60 hover:text-[#FAF6F1] block mb-2"
                 >
                     🎵 TikTok
+                </a>
+                <a
+                    href="https://www.instagram.com/anna.ollivier.psy/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-[#FAF6F1]/60 hover:text-[#FAF6F1] block mb-2"
+                >
+                    📸 Instagram
+                </a>
+                <a
+                    href="https://www.facebook.com/AnnaOllivierPsy"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-[#FAF6F1]/60 hover:text-[#FAF6F1] block mb-4"
+                >
+                    📘 Facebook
                 </a>
                 <button
                     onClick={() => signOut({ callbackUrl: "/login" })}

@@ -131,7 +131,15 @@ export default function VeillePage() {
 
     return (
         <div className="p-8 bg-cream min-h-screen">
-            <h1 className="text-2xl font-bold text-brandtext mb-1">👁️ Veille Concurrence</h1>
+            <div className="flex items-center justify-between mb-1">
+                <h1 className="text-2xl font-bold text-brandtext">👁️ Veille Concurrence</h1>
+                <button
+                    onClick={() => loadData()}
+                    className="px-4 py-2 rounded-lg border border-warm text-brandtext text-sm hover:bg-warm transition-colors"
+                >
+                    🔄 Rafraîchir
+                </button>
+            </div>
             <p className="text-sm text-brandmuted mb-6">
                 Analyses des concurrents et opportunités identifiées à partir des mots-clés de vos analyses.
             </p>

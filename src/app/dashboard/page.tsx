@@ -35,8 +35,13 @@ interface BacklogItem {
     id: string;
     title: string;
     plateforme: string;
-    typeContenu: string;
-    sujet: string;
+    format: string;
+    hook: string;
+    problemeCible: string;
+    messageCle: string;
+    solution: string;
+    cta: string;
+    hashtags: string;
     priorite: string;
     statut: string;
 }

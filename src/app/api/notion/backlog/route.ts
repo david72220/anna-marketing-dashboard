@@ -7,14 +7,17 @@ interface BacklogItem {
     id: string;
     title: string;
     plateforme: string;
-    typeContenu: string;
-    sujet: string;
-    angle: string;
+    format: string;
+    hook: string;
+    problemeCible: string;
+    messageCle: string;
+    solution: string;
+    cta: string;
+    hashtags: string;
     priorite: string;
     statut: string;
-    datePublication: string;
+    dateGeneration: string;
     createdTime: string;
-    motsCles: string;
 }
 
 async function fetchBacklog(): Promise<BacklogItem[]> {
@@ -22,32 +25,33 @@ async function fetchBacklog(): Promise<BacklogItem[]> {
     return results.map((page: Record<string, unknown>) => {
         const props = (page.properties || {}) as Record<string, Record<string, unknown>>;
         return {
-            id: page.id,
+            id: page.id as string,
             title: getPageTitle(page),
             plateforme: getPropertyText(props["Plateforme"] || {}),
-            typeContenu: getPropertyText(props["Type Contenu"] || {}),
-            sujet: getPropertyText(props["Sujet"] || {}),
-            angle: getPropertyText(props["Angle"] || {}),
-            priorite: getPropertyText(props["Priorité"] || {}),
+            format: getPropertyText(props["Format"] || {}),
+            hook: getPropertyText(props["Hook"] || {}),
+            problemeCible: getPropertyText(props["Probleme Cible"] || {}),
+            messageCle: getPropertyText(props["Message Cle"] || {}),
+            solution: getPropertyText(props["Solution"] || {}),
+            cta: getPropertyText(props["CTA"] || {}),
+            hashtags: getPropertyText(props["Hashtags"] || {}),
+            priorite: getPropertyText(props["Priorite"] || {}),
             statut: getPropertyText(props["Statut"] || {}),
-            datePublication: getPropertyText(props["Date Publication"] || {}),
-            createdTime: page.created_time,
-            motsCles: getPropertyText(props["Mots-clés"] || {}),
+            dateGeneration: getPropertyText(props["Date Generation"] || {}),
+            createdTime: page.created_time as string,
         };
     });
 }
 
 function scoreItem(item: BacklogItem, terms: string[]): number {
-    const text = `${item.title} ${item.sujet} ${item.angle} ${item.motsCles} ${item.typeContenu} ${item.plateforme}`.toLowerCase();
+    const text = `${item.title} ${item.hook} ${item.problemeCible} ${item.messageCle} ${item.solution} ${item.hashtags} ${item.plateforme} ${item.format}`.toLowerCase();
     let score = 0;
     for (const term of terms) {
         if (!term) continue;
         const t = term.toLowerCase();
         if (text.includes(t)) score += 1;
-        // Bonus si le terme est dans le titre
         if (item.title.toLowerCase().includes(t)) score += 2;
-        // Bonus si dans les mots-clés
-        if (item.motsCles.toLowerCase().includes(t)) score += 1.5;
+        if (item.hashtags.toLowerCase().includes(t)) score += 1.5;
     }
     return score;
 }
@@ -62,7 +66,6 @@ function generateSuggestions(items: BacklogItem[], prompt: string): unknown[] {
     }));
 
     scored.sort((a, b) => b.score - a.score);
-    // Retourner les items avec un score > 0, ou tous si aucun match
     const withScore = scored.filter((s) => s.score > 0);
     return (withScore.length > 0 ? withScore : scored).map((s) => ({
         ...s.item,
@@ -73,7 +76,11 @@ function generateSuggestions(items: BacklogItem[], prompt: string): unknown[] {
 export async function GET() {
     try {
         const backlog = await fetchBacklog();
-        return NextResponse.json(backlog);
+        return NextResponse.json(backlog, {
+            headers: {
+                "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+            },
+        });
     } catch (error) {
         console.error("Erreur Notion backlog:", error);
         return NextResponse.json({ error: "Erreur lors de la récupération du backlog" }, { status: 500 });
@@ -89,7 +96,6 @@ export async function POST(request: Request) {
             return NextResponse.json(backlog);
         }
 
-        // Appel au webhook N8N pour générer des suggestions via l'automatisation
         const webhookUrl = process.env.N8N_WEBHOOK_BACKLOG;
         let n8nResponse = null;
 
@@ -106,7 +112,6 @@ export async function POST(request: Request) {
                 n8nResponse = await n8nRes.json().catch(() => ({ status: "triggered" }));
             } catch (webhookError) {
                 console.error("Erreur webhook N8N backlog:", webhookError);
-                // On continue avec le scoring local si le webhook échoue
             }
         }
 

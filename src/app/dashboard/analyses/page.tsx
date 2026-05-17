@@ -364,9 +364,17 @@ export default function AnalysesPage() {
 
     return (
         <div className="p-8">
-            <div className="mb-8">
-                <h1 className="text-3xl font-bold text-brandtext">🔍 Analyses de Contenu</h1>
-                <p className="text-brandmuted mt-2">Résultats des analyses de pertinence du contenu d'Anna</p>
+            <div className="mb-8 flex items-center justify-between">
+                <div>
+                    <h1 className="text-3xl font-bold text-brandtext">🔍 Analyses de Contenu</h1>
+                    <p className="text-brandmuted mt-2">Résultats des analyses de pertinence du contenu d'Anna</p>
+                </div>
+                <button
+                    onClick={() => { setLoading(true); fetch("/api/notion/analyses").then((r) => r.json()).then((data) => { setAnalyses(Array.isArray(data) ? data : []); setLoading(false); }).catch(() => setLoading(false)); }}
+                    className="px-4 py-2 rounded-lg border border-warm text-brandtext text-sm hover:bg-warm transition-colors"
+                >
+                    🔄 Rafraîchir
+                </button>
             </div>
 
             {/* New analysis form */}
