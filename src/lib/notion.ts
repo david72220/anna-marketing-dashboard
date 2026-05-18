@@ -1,3 +1,12 @@
+export function formatDate(dateStr: string): string {
+    // Extract date portion from ISO strings (e.g. "2026-05-18T00:00:00.000+02:00" → "2026-05-18")
+    const dateOnly = dateStr.split("T")[0];
+    const [year, month, day] = dateOnly.split("-").map(Number);
+    if (!year || !month || !day) return dateStr;
+    const date = new Date(year, month - 1, day);
+    return date.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+}
+
 const NOTION_API_KEY = process.env.NOTION_API_KEY;
 const NOTION_BASE = "https://api.notion.com/v1";
 
@@ -58,12 +67,7 @@ export function getPropertyText(prop: Record<string, unknown>): string {
         case "date": {
             const d = prop.date as { start: string } | null;
             if (!d?.start) return "";
-            // Parse date-only strings as local dates to avoid timezone offset issues
-            const parts = d.start.split("-");
-            if (parts.length === 3) {
-                return `${parts[2]}/${parts[1]}/${parts[0]}`;
-            }
-            return new Date(d.start).toLocaleDateString("fr-FR");
+            return formatDate(d.start);
         }
         case "url":
             return (prop.url as string) || "";

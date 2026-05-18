@@ -31,10 +31,10 @@ export async function GET() {
             };
         });
 
-        // Trier par date d'analyse décroissante (plus récent en premier)
+        // Trier par date de création décroissante (plus récent en premier)
         analyses.sort((a: any, b: any) => {
-            const dateA = a.dateAnalyse ? new Date(a.dateAnalyse).getTime() : 0;
-            const dateB = b.dateAnalyse ? new Date(b.dateAnalyse).getTime() : 0;
+            const dateA = a.createdTime ? new Date(a.createdTime).getTime() : 0;
+            const dateB = b.createdTime ? new Date(b.createdTime).getTime() : 0;
             return dateB - dateA;
         });
 
