@@ -174,6 +174,9 @@ export default function BacklogPage() {
                             {statusMessage}
                         </p>
                     )}
+                    <p style={{ fontSize: "var(--size-tag)", color: "var(--fg-muted)", marginTop: "var(--space-2)" }}>
+                        L&apos;automatisation prend généralement 2 à 5 minutes pour générer les résultats.
+                    </p>
                 </PromptCard>
 
                 {/* Filters */}

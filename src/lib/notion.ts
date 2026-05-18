@@ -57,7 +57,13 @@ export function getPropertyText(prop: Record<string, unknown>): string {
         }
         case "date": {
             const d = prop.date as { start: string } | null;
-            return d?.start ? new Date(d.start).toLocaleDateString("fr-FR") : "";
+            if (!d?.start) return "";
+            // Parse date-only strings as local dates to avoid timezone offset issues
+            const parts = d.start.split("-");
+            if (parts.length === 3) {
+                return `${parts[2]}/${parts[1]}/${parts[0]}`;
+            }
+            return new Date(d.start).toLocaleDateString("fr-FR");
         }
         case "url":
             return (prop.url as string) || "";
