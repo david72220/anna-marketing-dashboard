@@ -1,22 +1,35 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Jost, Cormorant_Garamond } from "next/font/google";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"] });
+const jost = Jost({
+    subsets: ["latin"],
+    weight: ["300", "400", "500", "600", "700"],
+    variable: "--font-body",
+    display: "swap",
+});
+
+const cormorant = Cormorant_Garamond({
+    subsets: ["latin"],
+    weight: ["300", "400", "500", "600", "700"],
+    style: ["normal", "italic"],
+    variable: "--font-display",
+    display: "swap",
+});
 
 export const metadata: Metadata = {
-  title: "Anna Marketing Dashboard",
-  description: "Tableau de bord marketing Anna Ollivier",
+    title: "Anna Marketing Dashboard",
+    description: "Tableau de bord marketing Anna Ollivier",
 };
 
 export default function RootLayout({
-  children,
+    children,
 }: {
-  children: React.ReactNode;
+    children: React.ReactNode;
 }) {
-  return (
-    <html lang="fr">
-      <body className={inter.className}>{children}</body>
-    </html>
-  );
+    return (
+        <html lang="fr" className={`${jost.variable} ${cormorant.variable}`}>
+            <body>{children}</body>
+        </html>
+    );
 }

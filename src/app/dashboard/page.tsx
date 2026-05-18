@@ -1,6 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Banner from "@/components/Banner";
+import Counter from "@/components/Counter";
+import NetworkBadge from "@/components/NetworkBadge";
+import BarRow from "@/components/BarRow";
+import { Search, Eye, PenLine, BarChart3, TrendingUp, TrendingDown } from "lucide-react";
 
 interface Analysis {
     id: string;
@@ -16,19 +21,9 @@ interface VeilleItem {
     id: string;
     title: string;
     themesDominants: string;
-    anglesNonExploites: string;
-    formatsPerformants: string;
-    motsCles: string;
-    concurrents: string;
-    recommandations: string;
-    resume: string;
+    plateforme: string;
     dateVeille: string;
     statut: string;
-    plateforme: string;
-    pointsFortsConcurrents: string;
-    produitsConcurrents: string;
-    positionnementAnna: string;
-    motsClesUtilises: string;
 }
 
 interface BacklogItem {
@@ -36,12 +31,6 @@ interface BacklogItem {
     title: string;
     plateforme: string;
     format: string;
-    hook: string;
-    problemeCible: string;
-    messageCle: string;
-    solution: string;
-    cta: string;
-    hashtags: string;
     priorite: string;
     statut: string;
 }
@@ -61,20 +50,6 @@ interface MetricsData {
     metrics: Record<string, unknown[]>;
     lastUpdated: string | null;
 }
-
-const platformIcons: Record<string, string> = {
-    youtube: "🎥",
-    tiktok: "🎵",
-    facebook: "📘",
-    instagram: "📸",
-};
-
-const platformColors: Record<string, string> = {
-    youtube: "bg-rose-50 border-rose-200 text-rose-700",
-    tiktok: "bg-mauve-50 border-mauve-200 text-mauve-700",
-    facebook: "bg-rose-50 border-rose-200 text-rose-700",
-    instagram: "bg-mauve-50 border-mauve-200 text-mauve-700",
-};
 
 const ownerLabels: Record<string, string> = {
     anna: "Anna OLLIVIER",
@@ -105,18 +80,21 @@ export default function DashboardPage() {
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center h-full">
-                <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-mauve mx-auto"></div>
-                    <p className="mt-4 text-brandmuted">Chargement du dashboard...</p>
+            <>
+                <Banner screen="overview" />
+                <div className="page">
+                    <div className="flex items-center justify-center py-24">
+                        <div className="text-center">
+                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-mauve mx-auto" />
+                            <p className="mt-4 text-brandmuted" style={{ fontFamily: "var(--font-sans)" }}>Chargement…</p>
+                        </div>
+                    </div>
                 </div>
-            </div>
+            </>
         );
     }
 
-    const recentAnalyses = analyses.slice(0, 5);
-    const recentVeille = veille.slice(0, 5);
-    const pendingBacklog = backlog.filter((b) => b.statut !== "Terminé").slice(0, 5);
+    const pendingBacklog = backlog.filter((b) => b.statut !== "Terminé");
 
     const getLatestSnapshot = (owner: string, platform: string): SnapshotEntry | null => {
         const key = `${owner}_${platform}`;
@@ -126,180 +104,184 @@ export default function DashboardPage() {
 
     const annaYt = getLatestSnapshot("anna", "youtube");
     const annaIg = getLatestSnapshot("anna", "instagram");
-    const davidYt = getLatestSnapshot("david", "youtube");
 
     const owners = ["anna", "david"];
     const platforms = ["youtube", "tiktok", "facebook", "instagram"];
 
     return (
-        <div className="p-8">
-            <div className="mb-8">
-                <h1 className="text-3xl font-bold text-brandtext">Vue d'ensemble</h1>
-                <p className="text-brandmuted mt-2">Tableau de bord marketing d'Anna OLLIVIER</p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                <StatCard
-                    title="Analyses réalisées"
-                    value={String(analyses.length)}
-                    icon="🔍"
-                    color="mauve"
-                />
-                <StatCard
-                    title="Veille concurrentielle"
-                    value={String(veille.length)}
-                    icon="👁️"
-                    color="rose"
-                />
-                <StatCard
-                    title="Posts en backlog"
-                    value={String(pendingBacklog.length)}
-                    icon="📝"
-                    color="brandgreen"
-                />
-                <StatCard
-                    title="Abonnés YouTube Anna"
-                    value={annaYt?.followers?.toLocaleString("fr-FR") || "—"}
-                    icon="🎥"
-                    color="mauve"
-                />
-            </div>
-
-            <div className="mb-8 bg-cream rounded-xl shadow-sm border border-warm p-6">
-                <h2 className="text-lg font-semibold text-brandtext mb-4">🔗 Comptes sociaux analysés</h2>
-                <div className="flex flex-wrap gap-4">
-                    <a
-                        href="https://www.instagram.com/anna.ollivier.psy/"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-mauve-50 border border-mauve-200 text-mauve-700 hover:bg-mauve-100 transition-colors"
-                    >
-                        <span className="text-xl">📸</span>
-                        <span className="font-medium text-sm">Instagram — @anna.ollivier.psy</span>
-                    </a>
-                    <a
-                        href="https://www.facebook.com/AnnaOllivierPsy"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100 transition-colors"
-                    >
-                        <span className="text-xl">📘</span>
-                        <span className="font-medium text-sm">Facebook — AnnaOllivierPsy</span>
-                    </a>
+        <>
+            <Banner screen="overview" />
+            <div className="page">
+                <div className="page-header">
+                    <div>
+                        <div className="page-eyebrow">Tableau de bord</div>
+                        <h1 className="page-title">
+                            Vue d&apos;<em>ensemble</em>
+                        </h1>
+                        <p className="page-sub">Là où tout commence — l&apos;état de votre présence en un coup d&apos;œil.</p>
+                    </div>
                 </div>
-            </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="bg-cream rounded-xl shadow-sm border border-warm p-6">
-                    <h2 className="text-lg font-semibold text-brandtext mb-4">📋 Dernières Analyses</h2>
-                    {recentAnalyses.length === 0 ? (
-                        <p className="text-brandmuted text-sm">Aucune analyse pour le moment</p>
-                    ) : (
-                        <div className="space-y-3">
-                            {recentAnalyses.map((a) => (
-                                <div key={a.id} className="flex items-center justify-between py-2 border-b border-warm last:border-0">
-                                    <div>
-                                        <p className="font-medium text-brandtext text-sm">{a.title}</p>
-                                        <p className="text-xs text-brandmuted">{a.plateforme} • {a.dateAnalyse}</p>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-xs bg-mauve-100 text-mauve-700 px-2 py-1 rounded-full">
+                {/* KPI grid */}
+                <div className="kpi-grid">
+                    <div className="kpi">
+                        <div className="kpi-icon"><Search size={18} /></div>
+                        <div className="kpi-value"><Counter value={analyses.length} /></div>
+                        <div className="kpi-label">Analyses réalisées</div>
+                    </div>
+                    <div className="kpi">
+                        <div className="kpi-icon"><Eye size={18} /></div>
+                        <div className="kpi-value"><Counter value={veille.length} /></div>
+                        <div className="kpi-label">Veilles concurrentielles</div>
+                    </div>
+                    <div className="kpi">
+                        <div className="kpi-icon"><PenLine size={18} /></div>
+                        <div className="kpi-value"><Counter value={pendingBacklog.length} /></div>
+                        <div className="kpi-label">Posts en backlog</div>
+                    </div>
+                    <div className="kpi">
+                        <div className="kpi-icon"><BarChart3 size={18} /></div>
+                        <div className="kpi-value">
+                            {annaYt ? <Counter value={annaYt.followers} /> : "—"}
+                        </div>
+                        <div className="kpi-label">Abonnés YouTube Anna</div>
+                    </div>
+                </div>
+
+                {/* Social accounts */}
+                <div className="card" style={{ marginBottom: "var(--space-6)" }}>
+                    <div className="card-header">
+                        <h3 className="card-title">Comptes sociaux analysés</h3>
+                    </div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-4)" }}>
+                        {[
+                            { network: "instagram", label: "@anna.ollivier.psy", href: "https://www.instagram.com/anna.ollivier.psy/" },
+                            { network: "facebook", label: "AnnaOllivierPsy", href: "https://www.facebook.com/AnnaOllivierPsy" },
+                            { network: "youtube", label: "Confidences de tout-petits", href: "https://www.youtube.com/@Confidencesdetoutpetits-Monreg" },
+                            { network: "tiktok", label: "@anna.ollivier.psy", href: "https://www.tiktok.com/@anna.ollivier.psy" },
+                        ].map((account) => (
+                            <a
+                                key={account.network}
+                                href={account.href}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="card"
+                                style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: "var(--space-3)",
+                                    padding: "var(--space-3) var(--space-5)",
+                                    textDecoration: "none",
+                                }}
+                            >
+                                <NetworkBadge network={account.network} />
+                                <span style={{ fontFamily: "var(--font-sans)", fontSize: "var(--size-body)", color: "var(--fg)" }}>
+                                    {account.label}
+                                </span>
+                            </a>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Recent items — 2 columns */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-6)" }}>
+                    <div className="card">
+                        <div className="card-header">
+                            <h3 className="card-title">Dernières Analyses</h3>
+                        </div>
+                        {analyses.slice(0, 5).length === 0 ? (
+                            <p className="text-brandmuted" style={{ fontSize: "var(--size-body)" }}>Aucune analyse pour le moment</p>
+                        ) : (
+                            <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-1)" }}>
+                                {analyses.slice(0, 5).map((a) => (
+                                    <div key={a.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "var(--space-2) 0", borderBottom: "1px solid var(--border)" }}>
+                                        <div style={{ minWidth: 0 }}>
+                                            <p style={{ fontFamily: "var(--font-sans)", fontWeight: 500, fontSize: "var(--size-body)", color: "var(--fg)" }}>{a.title}</p>
+                                            <p style={{ fontSize: "var(--size-meta)", color: "var(--fg-muted)" }}>{a.plateforme} · {a.dateAnalyse}</p>
+                                        </div>
+                                        <span className="priority-pill" style={{ background: "var(--rose-ll)", color: "var(--mauve-d)" }}>
                                             Pertinence: {a.scorePertinence}
                                         </span>
                                     </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-
-                <div className="bg-cream rounded-xl shadow-sm border border-warm p-6">
-                    <h2 className="text-lg font-semibold text-brandtext mb-4">🔎 Veille Concurrence</h2>
-                    {recentVeille.length === 0 ? (
-                        <p className="text-brandmuted text-sm">Aucune donnée de veille pour le moment</p>
-                    ) : (
-                        <div className="space-y-3">
-                            {recentVeille.map((v) => (
-                                <div key={v.id} className="flex items-center justify-between py-2 border-b border-warm last:border-0">
-                                    <div className="min-w-0 flex-1">
-                                        <p className="font-medium text-brandtext text-sm truncate">{v.title || "Veille sans titre"}</p>
-                                        <p className="text-xs text-brandmuted">
-                                            {v.plateforme}{v.dateVeille ? ` • ${v.dateVeille}` : ""}
-                                        </p>
-                                    </div>
-                                    <span className={`text-xs px-2 py-1 rounded-full ${(v.statut?.toLowerCase().includes("termin")) ? "bg-brandgreen/20 text-brandgreen" : "bg-rose/20 text-rose"}`}>
-                                        {v.statut || "En cours"}
-                                    </span>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-            </div>
-
-            {metrics?.snapshots && Object.keys(metrics.snapshots).length > 0 && (
-                <div className="mt-6 space-y-6">
-                    {owners.map((owner) => {
-                        const ownerPlatforms = platforms.filter((p) => metrics.snapshots[`${owner}_${p}`]);
-                        if (ownerPlatforms.length === 0) return null;
-                        return (
-                            <div key={owner} className="bg-cream rounded-xl shadow-sm border border-warm p-6">
-                                <h2 className="text-lg font-semibold text-brandtext mb-4">
-                                    📈 {ownerLabels[owner] || owner} — Réseaux Sociaux
-                                </h2>
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                                    {ownerPlatforms.map((platform) => {
-                                        const key = `${owner}_${platform}`;
-                                        const snaps = metrics.snapshots[key];
-                                        const latest = snaps[0];
-                                        const prev = snaps[1];
-                                        const diff = prev ? latest.followers - prev.followers : 0;
-                                        const viewsDiff = prev ? latest.totalViews - prev.totalViews : 0;
-                                        const likesDiff = prev ? (latest.totalLikes || 0) - (prev.totalLikes || 0) : 0;
-                                        return (
-                                            <div key={key} className={`rounded-lg p-4 border ${platformColors[platform] || "bg-cream border-warm"}`}>
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-xl">{platformIcons[platform] || "🌐"}</span>
-                                                    <p className="text-sm font-medium capitalize text-brandtext">{platform}</p>
-                                                </div>
-                                                <p className="text-2xl font-bold mt-2 text-brandtext">{latest.followers.toLocaleString("fr-FR")}</p>
-                                                <p className={`text-sm ${diff >= 0 ? "text-brandgreen" : "text-rose"}`}>
-                                                    {diff >= 0 ? "+" : ""}{diff} abonnés
-                                                </p>
-                                                <p className="text-xs mt-1 opacity-75 text-brandmuted">
-                                                    Vues: {latest.totalViews?.toLocaleString("fr-FR") || "—"}
-                                                    {viewsDiff !== 0 && ` (${viewsDiff >= 0 ? "+" : ""}${viewsDiff.toLocaleString("fr-FR")})`}
-                                                </p>
-                                                <p className="text-xs opacity-75 text-brandmuted">
-                                                    ❤️ {latest.totalLikes?.toLocaleString("fr-FR") || "—"}
-                                                    {likesDiff !== 0 && ` (${likesDiff >= 0 ? "+" : ""}${likesDiff.toLocaleString("fr-FR")})`}
-                                                </p>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
+                                ))}
                             </div>
-                        );
-                    })}
-                </div>
-            )}
-        </div>
-    );
-}
+                        )}
+                    </div>
 
-function StatCard({ title, value, icon, color }: { title: string; value: string; icon: string; color: string }) {
-    const colorMap: Record<string, string> = {
-        mauve: "bg-mauve-50 text-mauve-600 border-mauve-200",
-        rose: "bg-rose-50 text-rose-600 border-rose-200",
-        brandgreen: "bg-brandgreen-50 text-brandgreen-600 border-brandgreen-200",
-    };
-    return (
-        <div className={`rounded-xl border p-6 ${colorMap[color] || colorMap.mauve}`}>
-            <div className="flex items-center justify-between">
-                <p className="text-sm font-medium opacity-80">{title}</p>
-                <span className="text-2xl">{icon}</span>
+                    <div className="card">
+                        <div className="card-header">
+                            <h3 className="card-title">Veille Concurrence</h3>
+                        </div>
+                        {veille.slice(0, 5).length === 0 ? (
+                            <p className="text-brandmuted" style={{ fontSize: "var(--size-body)" }}>Aucune donnée de veille</p>
+                        ) : (
+                            <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-1)" }}>
+                                {veille.slice(0, 5).map((v) => (
+                                    <div key={v.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "var(--space-2) 0", borderBottom: "1px solid var(--border)" }}>
+                                        <div style={{ minWidth: 0 }}>
+                                            <p style={{ fontFamily: "var(--font-sans)", fontWeight: 500, fontSize: "var(--size-body)", color: "var(--fg)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                                {v.title || "Veille sans titre"}
+                                            </p>
+                                            <p style={{ fontSize: "var(--size-meta)", color: "var(--fg-muted)" }}>
+                                                {v.plateforme}{v.dateVeille ? ` · ${v.dateVeille}` : ""}
+                                            </p>
+                                        </div>
+                                        <span className={`status-pill ${v.statut?.toLowerCase().includes("termin") ? "status-done" : "status-pending"}`}>
+                                            {v.statut || "En cours"}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Social metrics */}
+                {metrics?.snapshots && Object.keys(metrics.snapshots).length > 0 && (
+                    <div style={{ marginTop: "var(--space-6)" }}>
+                        {owners.map((owner) => {
+                            const ownerPlatforms = platforms.filter((p) => metrics.snapshots[`${owner}_${p}`]);
+                            if (ownerPlatforms.length === 0) return null;
+                            return (
+                                <div key={owner} className="card" style={{ marginBottom: "var(--space-6)" }}>
+                                    <div className="card-header">
+                                        <h3 className="card-title">{ownerLabels[owner] || owner} — Réseaux Sociaux</h3>
+                                    </div>
+                                    <div className="kpi-grid">
+                                        {ownerPlatforms.map((platform) => {
+                                            const key = `${owner}_${platform}`;
+                                            const snaps = metrics.snapshots[key];
+                                            const latest = snaps[0];
+                                            const prev = snaps[1];
+                                            const diff = prev ? latest.followers - prev.followers : 0;
+                                            return (
+                                                <div key={key} className="kpi">
+                                                    <div className="kpi-icon">
+                                                        <NetworkBadge network={platform} />
+                                                    </div>
+                                                    <div className="kpi-value"><Counter value={latest.followers} /></div>
+                                                    <div className="kpi-label" style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                                                        {platform.charAt(0).toUpperCase() + platform.slice(1)}
+                                                        {diff !== 0 && (
+                                                            <span style={{ color: diff > 0 ? "var(--green)" : "var(--rose)", display: "inline-flex", alignItems: "center", gap: 2 }}>
+                                                                {diff > 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+                                                                {diff > 0 ? "+" : ""}{diff.toLocaleString("fr-FR")}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div style={{ fontSize: "var(--size-meta)", color: "var(--fg-muted)", marginTop: 2 }}>
+                                                        Vues: {latest.totalViews?.toLocaleString("fr-FR") || "—"}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
             </div>
-            <p className="text-3xl font-bold mt-2">{value}</p>
-        </div>
+        </>
     );
 }

@@ -9,8 +9,8 @@ const config: Config = {
     theme: {
         extend: {
             fontFamily: {
-                display: ["Cormorant Garamond", "serif"],
-                body: ["Jost", "sans-serif"],
+                display: ["var(--font-display)", "Cormorant Garamond", "serif"],
+                body: ["var(--font-body)", "Jost", "sans-serif"],
             },
             colors: {
                 border: "hsl(var(--border))",
@@ -78,6 +78,19 @@ const config: Config = {
                 lg: "var(--radius)",
                 md: "calc(var(--radius) - 2px)",
                 sm: "calc(var(--radius) - 4px)",
+            },
+            spacing: {
+                "1": "4px",
+                "2": "8px",
+                "3": "12px",
+                "4": "16px",
+                "5": "20px",
+                "6": "24px",
+                "8": "32px",
+                "10": "40px",
+                "12": "48px",
+                "16": "64px",
+                "18": "72px",
             },
         },
     },

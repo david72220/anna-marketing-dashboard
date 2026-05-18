@@ -4,22 +4,20 @@ import { authOptions } from "@/lib/auth";
 import Sidebar from "@/components/Sidebar";
 
 export default async function DashboardLayout({
-    children,
+  children,
 }: {
-    children: React.ReactNode;
+  children: React.ReactNode;
 }) {
-    const session = await getServerSession(authOptions);
+  const session = await getServerSession(authOptions);
 
-    if (!session) {
-        redirect("/login");
-    }
+  if (!session) {
+    redirect("/login");
+  }
 
-    return (
-        <div className="flex min-h-screen">
-            <Sidebar />
-            <main className="flex-1 bg-slate-50 overflow-auto">
-                {children}
-            </main>
-        </div>
-    );
+  return (
+    <div className="app">
+      <Sidebar />
+      <main className="main">{children}</main>
+    </div>
+  );
 }
