@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { genererWorkflow } from "./module-d-workflow.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -10,6 +11,7 @@ const SOURCES = [
 ];
 
 const SORTIE = "n8n/module-d/lib.js";
+const SORTIE_WORKFLOW = "n8n/module-d/workflow.json";
 
 function verifierAbsenceImport(contenu, chemin) {
     const lignes = contenu.split("\n");
@@ -58,11 +60,20 @@ function estExecutionDirecte() {
     return fileURLToPath(import.meta.url) === process.argv[1];
 }
 
+export function genererWorkflowJson() {
+    return JSON.stringify(genererWorkflow(genererLib()), null, 2) + "\n";
+}
+
 if (estExecutionDirecte()) {
-    const resultat = genererLib();
-    const cheminSortie = join(ROOT, SORTIE);
-    mkdirSync(dirname(cheminSortie), { recursive: true });
-    writeFileSync(cheminSortie, resultat, "utf8");
-    const nbLignes = resultat.split("\n").length;
-    console.log(`✔ ${SORTIE} généré (${nbLignes} lignes).`);
+    const lib = genererLib();
+    const cheminLib = join(ROOT, SORTIE);
+    mkdirSync(dirname(cheminLib), { recursive: true });
+    writeFileSync(cheminLib, lib, "utf8");
+    console.log(`✔ ${SORTIE} généré (${lib.split("\n").length} lignes).`);
+
+    const workflow = genererWorkflowJson();
+    const cheminWorkflow = join(ROOT, SORTIE_WORKFLOW);
+    writeFileSync(cheminWorkflow, workflow, "utf8");
+    const nbNoeuds = JSON.parse(workflow).nodes.length;
+    console.log(`✔ ${SORTIE_WORKFLOW} généré (${nbNoeuds} nœuds).`);
 }
