@@ -8,7 +8,7 @@ import NetworkBadge from "@/components/NetworkBadge";
 import Counter from "@/components/Counter";
 import ScoreBadge from "@/components/ScoreBadge";
 import { formatDate } from "@/lib/notion";
-import { RefreshCw, Users, FileText, TrendingUp, Flame, ChevronDown, Sparkles } from "lucide-react";
+import { RefreshCw, Users, FileText, TrendingUp, Flame, ChevronDown, Sparkles, Recycle, Check } from "lucide-react";
 
 const SURPERFORMANCE_THRESHOLD = 1.5;
 
@@ -77,6 +77,8 @@ export default function ConcurrentsPage() {
     const [platformFilter, setPlatformFilter] = useState("all");
     const [onlyOverperforming, setOnlyOverperforming] = useState(false);
     const [expandedId, setExpandedId] = useState<string | null>(null);
+    const [recycleState, setRecycleState] = useState<Record<string, "loading" | "done" | "error">>({});
+    const [recycleErrors, setRecycleErrors] = useState<Record<string, string>>({});
 
     const loadData = async () => {
         setLoading(true);
@@ -115,6 +117,28 @@ export default function ConcurrentsPage() {
             setError(e.message || "Erreur lors du déclenchement de la collecte");
         } finally {
             setLaunching(false);
+        }
+    };
+
+    const handleRecycle = async (postId: string) => {
+        setRecycleState((prev) => ({ ...prev, [postId]: "loading" }));
+        setRecycleErrors((prev) => {
+            const next = { ...prev };
+            delete next[postId];
+            return next;
+        });
+        try {
+            const r = await fetch("/api/notion/backlog/recycler", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ postId }),
+            });
+            const json = await r.json();
+            if (!r.ok || json.error) throw new Error(json.error || `Erreur ${r.status}`);
+            setRecycleState((prev) => ({ ...prev, [postId]: "done" }));
+        } catch (e: any) {
+            setRecycleState((prev) => ({ ...prev, [postId]: "error" }));
+            setRecycleErrors((prev) => ({ ...prev, [postId]: e.message || "Erreur lors du recyclage" }));
         }
     };
 
@@ -325,18 +349,57 @@ export default function ConcurrentsPage() {
                                                     )}
                                                 </td>
                                             </tr>
-                                            {isExpanded && (
-                                                <tr>
-                                                    <td colSpan={9} style={{ ...tdStyle, background: "var(--bg-soft)" }}>
-                                                        <p style={{ fontSize: "var(--size-tag)", fontWeight: 500, color: "var(--fg-muted)", letterSpacing: "var(--tracking-eyebrow)", textTransform: "uppercase", marginBottom: 4 }}>
-                                                            Analyse IA
-                                                        </p>
-                                                        <p style={{ fontSize: "var(--size-body)", color: "var(--fg)", lineHeight: "var(--leading-body)", whiteSpace: "pre-line" }}>
-                                                            {post.analyseIA}
-                                                        </p>
-                                                    </td>
-                                                </tr>
-                                            )}
+                                            {isExpanded && (() => {
+                                                const etat = recycleState[post.id] ?? (post.recycle ? "done" : "idle");
+                                                return (
+                                                    <tr>
+                                                        <td colSpan={9} style={{ ...tdStyle, background: "var(--bg-soft)" }}>
+                                                            <p style={{ fontSize: "var(--size-tag)", fontWeight: 500, color: "var(--fg-muted)", letterSpacing: "var(--tracking-eyebrow)", textTransform: "uppercase", marginBottom: 4 }}>
+                                                                Analyse IA
+                                                            </p>
+                                                            <p style={{ fontSize: "var(--size-body)", color: "var(--fg)", lineHeight: "var(--leading-body)", whiteSpace: "pre-line" }}>
+                                                                {post.analyseIA}
+                                                            </p>
+                                                            <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", marginTop: "var(--space-3)" }}>
+                                                                {etat === "done" ? (
+                                                                    <span
+                                                                        style={{
+                                                                            display: "inline-flex",
+                                                                            alignItems: "center",
+                                                                            gap: 6,
+                                                                            padding: "3px 10px",
+                                                                            borderRadius: "var(--radius-pill)",
+                                                                            background: "var(--green-l)",
+                                                                            color: "var(--green)",
+                                                                            fontSize: "var(--size-tag)",
+                                                                            fontWeight: 500,
+                                                                        }}
+                                                                    >
+                                                                        <Check size={12} /> Recyclé ✓
+                                                                    </span>
+                                                                ) : (
+                                                                    <button
+                                                                        className="btn btn-ghost"
+                                                                        disabled={etat === "loading"}
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            handleRecycle(post.id);
+                                                                        }}
+                                                                    >
+                                                                        <Recycle size={12} />
+                                                                        {etat === "loading" ? "Recyclage…" : "Recycler"}
+                                                                    </button>
+                                                                )}
+                                                                {etat === "error" && (
+                                                                    <span style={{ fontSize: "var(--size-tag)", color: "var(--rose)" }}>
+                                                                        {recycleErrors[post.id] || "Erreur lors du recyclage"}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })()}
                                         </Fragment>
                                     );
                                 })}
