@@ -1,9 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { normaliserInstagram } from "./normalize.mjs";
+import { normaliserInstagram, normaliserTikTok, normaliser } from "./normalize.mjs";
 
 const igRun = JSON.parse(readFileSync(new URL("./fixtures/instagram-run.json", import.meta.url)));
+const ttRun = JSON.parse(readFileSync(new URL("./fixtures/tiktok-run.json", import.meta.url)));
 
 test("normaliserInstagram produit le schéma unique", () => {
     const posts = normaliserInstagram(igRun);
@@ -104,4 +105,71 @@ test("une entrée non tableau ou mal formée ne lève pas", () => {
     assert.deepEqual(normaliserInstagram(undefined), []);
     assert.deepEqual(normaliserInstagram("pas un tableau"), []);
     assert.deepEqual(normaliserInstagram([null, 42, "x"]), []);
+});
+
+test("normaliserTikTok produit le schéma unique", () => {
+    const posts = normaliserTikTok(ttRun);
+    assert.ok(posts.length > 0);
+    for (const p of posts) {
+        assert.equal(typeof p.postId, "string");
+        assert.equal(p.plateforme, "TikTok");
+        assert.equal(p.type, "TikTok");
+        assert.equal(p.metriqueScore, "Vues");
+        assert.equal(typeof p.vues, "number");
+        assert.equal(typeof p.likes, "number");
+        assert.equal(typeof p.commentaires, "number");
+        assert.ok(p.handle.length > 0);
+        assert.equal(p.handle, p.handle.toLowerCase());
+        assert.ok(p.datePublication.includes("T"));
+    }
+});
+
+test("les métriques TikTok sont lues dans les bons champs", () => {
+    const posts = normaliserTikTok([
+        { id: "7", text: "bonjour", createTimeISO: "2026-07-26T16:15:44.000Z", webVideoUrl: "https://tt/7", playCount: 321, diggCount: 5, commentCount: 2, authorMeta: { name: "Anna.PSY" } },
+    ]);
+    assert.equal(posts[0].postId, "7");
+    assert.equal(posts[0].vues, 321);
+    assert.equal(posts[0].likes, 5);
+    assert.equal(posts[0].commentaires, 2);
+    assert.equal(posts[0].url, "https://tt/7");
+    assert.equal(posts[0].handle, "anna.psy");
+    assert.equal(posts[0].accroche, "bonjour");
+});
+
+test("un authorMeta absent ne fait pas lever", () => {
+    const posts = normaliserTikTok([
+        { id: "7", text: "x", createTimeISO: "2026-07-26T16:15:44.000Z", playCount: 1, diggCount: 0, commentCount: 0 },
+    ]);
+    assert.equal(posts[0].handle, "");
+});
+
+test("une légende TikTok vide donne l'accroche de repli", () => {
+    const posts = normaliserTikTok([
+        { id: "7", text: "", createTimeISO: "2026-07-26T16:15:44.000Z", playCount: 1, diggCount: 0, commentCount: 0, authorMeta: { name: "x" } },
+    ]);
+    assert.equal(posts[0].accroche, "(sans légende)");
+});
+
+test("les éléments TikTok sans identifiant sont écartés", () => {
+    assert.equal(normaliserTikTok([{ text: "x", authorMeta: { name: "y" } }]).length, 0);
+});
+
+test("une entrée TikTok non tableau ou mal formée ne lève pas", () => {
+    assert.deepEqual(normaliserTikTok(null), []);
+    assert.deepEqual(normaliserTikTok(undefined), []);
+    assert.deepEqual(normaliserTikTok("pas un tableau"), []);
+    assert.deepEqual(normaliserTikTok([null, 42, "x"]), []);
+});
+
+test("normaliser dispatche selon la plateforme", () => {
+    assert.equal(normaliser("Instagram", igRun).length, normaliserInstagram(igRun).length);
+    assert.equal(normaliser("TikTok", ttRun).length, normaliserTikTok(ttRun).length);
+    assert.deepEqual(normaliser("Inconnue", ttRun), []);
+    assert.deepEqual(normaliser(undefined, ttRun), []);
+});
+
+test("les deux plateformes produisent exactement les mêmes clés", () => {
+    const cles = (p) => Object.keys(p).sort().join(",");
+    assert.equal(cles(normaliserInstagram(igRun)[0]), cles(normaliserTikTok(ttRun)[0]));
 });

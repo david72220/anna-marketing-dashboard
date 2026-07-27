@@ -40,3 +40,33 @@ export function normaliserInstagram(items) {
     }
     return resultat;
 }
+
+export function normaliserTikTok(items) {
+    if (!Array.isArray(items)) return [];
+    const resultat = [];
+    for (const item of items) {
+        if (!item || typeof item !== "object" || !item.id) continue;
+        const auteur = item.authorMeta || {};
+        resultat.push({
+            postId: String(item.id),
+            plateforme: "TikTok",
+            handle: String(auteur.name || item.uniqueId || "").toLowerCase().replace("@", ""),
+            url: item.webVideoUrl || "",
+            datePublication: item.createTimeISO || "",
+            type: "TikTok",
+            accroche: accrocheDepuis(item.text),
+            legende: String(item.text || ""),
+            vues: entier(item.playCount),
+            likes: entier(item.diggCount),
+            commentaires: entier(item.commentCount),
+            metriqueScore: "Vues",
+        });
+    }
+    return resultat;
+}
+
+export function normaliser(plateforme, items) {
+    if (plateforme === "Instagram") return normaliserInstagram(items);
+    if (plateforme === "TikTok") return normaliserTikTok(items);
+    return [];
+}
