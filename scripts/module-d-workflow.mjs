@@ -197,13 +197,232 @@ const CODE_FILTRER_COMPTES = `// Un item par fiche compte dont les moyennes sont
 const s = $('Scorer').first().json;
 return (s.majComptes || []).map((c) => ({ json: { ...c, collecteLe: s.aujourdhui } }));`;
 
+// Le seuil et la limite viennent de lib.js (SEUIL_SURPERFORMANCE), mais ce nœud
+// n'embarque pas la lib : on relit la valeur en dur pour garder le nœud léger.
+const CODE_FILTRER_A_QUALIFIER = `// Publications à faire qualifier par le LLM.
+// On relit l'état réel de Notion plutôt que la sortie du calcul : à ce stade
+// les créations sont écrites, donc les nouvelles publications ont un identifiant
+// de page et peuvent recevoir leur analyse dès cette exécution.
+const SEUIL = 1.5;
+const MAX_PAR_EXECUTION = 8;
+
+const txt = (prop) => {
+  if (!prop || !Array.isArray(prop.rich_text)) return '';
+  return prop.rich_text.map((t) => t.plain_text || (t.text && t.text.content) || '').join('');
+};
+
+const candidats = $input.all()
+  .map((i) => i.json)
+  .filter((page) => page && page.properties)
+  .map((page) => {
+    const p = page.properties;
+    return {
+      pageId: page.id,
+      score: p['Score surperformance'] && typeof p['Score surperformance'].number === 'number' ? p['Score surperformance'].number : null,
+      dejaAnalyse: txt(p['Analyse IA']).trim().length > 0,
+      accroche: (p['Accroche'].title || []).map((t) => t.plain_text).join(''),
+      legende: '',
+      handle: txt(p['Handle']),
+      plateforme: p['Plateforme'] && p['Plateforme'].select ? p['Plateforme'].select.name : '',
+      type: p['Type'] && p['Type'].select ? p['Type'].select.name : '',
+      metriqueScore: p['Métrique de score'] && p['Métrique de score'].select ? p['Métrique de score'].select.name : 'Vues',
+      vues: p['Vues'] && typeof p['Vues'].number === 'number' ? p['Vues'].number : 0,
+      likes: p['Likes'] && typeof p['Likes'].number === 'number' ? p['Likes'].number : 0,
+      url: p['URL post'] ? p['URL post'].url : ''
+    };
+  })
+  // L'analyse n'est jamais repayée : une publication déjà qualifiée est ignorée.
+  .filter((c) => c.score !== null && c.score >= SEUIL && !c.dejaAnalyse)
+  .sort((a, b) => b.score - a.score)
+  .slice(0, MAX_PAR_EXECUTION);
+
+// Les légendes complètes ne sont pas dans Notion (seule l'accroche l'est).
+// On les récupère depuis le lot fraîchement collecté quand elles y sont.
+const collecte = $('Normaliser').first().json.posts || [];
+const parAccroche = {};
+for (const p of collecte) parAccroche[p.accroche] = p.legende;
+
+return candidats.map((c) => ({ json: { ...c, legende: parAccroche[c.accroche] || c.accroche } }));`;
+
+const CODE_BUILD_PROMPT = `// Un prompt par publication. Le nœud cascade en aval tourne une fois par item.
+return $input.all().map((item) => {
+const p = item.json;
+const valeur = p.metriqueScore === 'Likes' ? p.likes : p.vues;
+
+const prompt = \`Tu analyses une publication de concurrent qui a nettement surperformé par rapport à la moyenne de son propre compte.
+
+Compte : @\${p.handle} sur \${p.plateforme}
+Type : \${p.type}
+Score de surperformance : \${p.score}× la moyenne habituelle de ce compte
+Métrique : \${p.metriqueScore} — \${valeur}
+Légende : \${String(p.legende || '').slice(0, 1500)}
+
+Contexte : Anna Ollivier est psychologue clinicienne, spécialisée en développement émotionnel de l'enfant. Elle crée du contenu pour les parents.
+
+Réponds UNIQUEMENT en JSON valide, sans backtick ni commentaire :
+{
+  "angle": ["deux à quatre mots-clés d'angle éditorial"],
+  "format": "description courte du format",
+  "accroche": "type d'accroche utilisé",
+  "pourquoi": "deux phrases maximum sur ce qui explique la performance",
+  "transposable": "Oui | Non | À adapter"
+}\`;
+
+return { json: { prompt, pageId: p.pageId } };
+});`;
+
+const CODE_CASCADE = `// Cascade LLM — Qualification des publications surperformantes.
+// Même patron que les nœuds cascade des Modules B et C.
+// 1. Anthropic Claude Sonnet 4.6  2. deepseek-v4-pro:cloud  3. qwen2.5:3b
+//
+// À RENSEIGNER APRÈS IMPORT : coller la clé Anthropic ci-dessous.
+// Elle n'est volontairement pas versionnée — un export de workflow finit dans git.
+// La même clé est déjà présente dans le nœud "Cascade LLM Veille" du Module B.
+const ANTHROPIC_API_KEY = 'CLE_ANTHROPIC_A_RENSEIGNER';
+
+const prompt = $input.item.json.prompt;
+const pageId = $input.item.json.pageId;
+
+const moteurs = [
+  { nom: 'Anthropic Claude Sonnet 4.6', type: 'anthropic', url: 'https://api.anthropic.com/v1/messages', apiKey: ANTHROPIC_API_KEY, model: 'claude-sonnet-4-6', timeout: 120000, maxTokens: 800 },
+  { nom: 'deepseek-v4-pro:cloud', type: 'ollama', url: 'http://172.18.0.1:11434/api/chat', model: 'deepseek-v4-pro:cloud', timeout: 540000, think: false, num_predict: 800 },
+  { nom: 'qwen2.5:3b', type: 'ollama', url: 'http://172.18.0.1:11434/api/chat', model: 'qwen2.5:3b', timeout: 540000, num_predict: 800 }
+];
+
+let responseText = null;
+let usedModel = null;
+let lastError = null;
+
+for (const moteur of moteurs) {
+  try {
+    if (moteur.type === 'anthropic') {
+      const resp = await this.helpers.httpRequest({
+        method: 'POST',
+        url: moteur.url,
+        headers: { 'x-api-key': moteur.apiKey, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: moteur.model, max_tokens: moteur.maxTokens, messages: [{ role: 'user', content: prompt }] }),
+        timeout: moteur.timeout
+      });
+      if (resp && resp.content && resp.content[0] && resp.content[0].text) {
+        responseText = resp.content[0].text;
+        usedModel = moteur.nom;
+        break;
+      }
+    } else {
+      const reqBody = { model: moteur.model, messages: [{ role: 'user', content: prompt }], stream: false, options: { num_predict: moteur.num_predict } };
+      if (moteur.think === false) reqBody.think = false;
+      const resp = await this.helpers.httpRequest({ method: 'POST', url: moteur.url, body: JSON.stringify(reqBody), timeout: moteur.timeout });
+      if (resp && resp.message && resp.message.content) {
+        responseText = resp.message.content;
+        usedModel = moteur.nom;
+        break;
+      }
+    }
+  } catch (e) {
+    lastError = e.message;
+    continue;
+  }
+}
+
+// Une panne LLM ne doit pas faire perdre la collecte : la publication est
+// simplement laissée sans analyse et sera requalifiée au passage suivant.
+if (!responseText) {
+  return { json: { pageId, echec: true, message: 'Tous les moteurs LLM ont échoué : ' + (lastError || 'inconnue') } };
+}
+
+return { json: { pageId, echec: false, moteur: usedModel, content: [{ type: 'text', text: responseText }] } };`;
+
+// Tourne une fois pour tous les items : les publications dont la qualification
+// a échoué sont simplement écartées du flux, sans nœud IF supplémentaire. Leur
+// champ Analyse IA reste vide, donc elles repasseront à la prochaine exécution.
+const CODE_PARSER = `const resultats = [];
+
+for (const item of $input.all()) {
+  const j = item.json;
+
+  if (j.echec) continue;
+
+  const brut = (j.content && j.content[0] && j.content[0].text) || '';
+  const nettoye = brut.replace(/\`\`\`json/g, '').replace(/\`\`\`/g, '').trim();
+
+  let data = null;
+  try {
+    data = JSON.parse(nettoye);
+  } catch (e) {
+    const debut = nettoye.indexOf('{');
+    const fin = nettoye.lastIndexOf('}');
+    if (debut !== -1 && fin !== -1) {
+      try { data = JSON.parse(nettoye.slice(debut, fin + 1)); } catch (e2) { data = null; }
+    }
+  }
+
+  if (!data) continue;
+
+  const angles = Array.isArray(data.angle) ? data.angle.slice(0, 4).join(', ') : String(data.angle || '');
+  const transposable = ['Oui', 'Non', 'À adapter'].includes(data.transposable) ? data.transposable : 'À adapter';
+
+  // Notion refuse tout objet rich_text au-delà de 2000 caractères.
+  const analyse = [
+    'Angle : ' + angles,
+    'Format : ' + (data.format || ''),
+    'Accroche : ' + (data.accroche || ''),
+    '',
+    data.pourquoi || ''
+  ].join('\\n').slice(0, 1900);
+
+  resultats.push({ json: { pageId: j.pageId, analyse, transposable, moteur: j.moteur } });
+}
+
+return resultats;`;
+
+const CODE_AGREGER_MAIL = `const s = $('Scorer').first().json;
+
+const lien = (p) => p.url || '';
+const ligne = (p, i) => {
+  const valeur = p.metriqueScore === 'Likes' ? p.likes + ' likes' : p.vues + ' vues';
+  return '<div style="border:1px solid #e0e0e0;border-radius:8px;padding:14px;margin:10px 0;">' +
+    '<strong style="color:#7c3aed">' + p.score + '× la moyenne du compte</strong> — @' + p.handle +
+    ' (' + p.plateforme + ', ' + p.type + ')<br>' +
+    '<em>' + (p.accroche || '') + '</em><br>' +
+    valeur + ' · <a href="' + lien(p) + '">voir la publication</a></div>';
+};
+
+const top = (s.surperformants || []).slice(0, 5).map(ligne).join('') ||
+  '<p>Aucune publication au-dessus du seuil cette semaine.</p>';
+
+// Un compte sans aucune publication en base est dormant ou mal saisi.
+// Sans ce signalement, rien ne le distingue d'une collecte réussie mais vide.
+const dormants = (s.majComptes || []).filter((c) => !c.nbBaseline);
+const blocDormants = dormants.length
+  ? '<h3>Comptes sans publication récente</h3><p>' + dormants.length +
+    ' compte(s) actif(s) n\\'ont rien publié dans la fenêtre analysée. ' +
+    'Vérifie qu\\'ils sont toujours pertinents.</p>'
+  : '';
+
+const blocErreurs = (s.erreurs || []).length
+  ? '<h3 style="color:#b91c1c">Incidents de collecte</h3><p>' + s.erreurs.join('<br>') + '</p>'
+  : '';
+
+const corps = '<h2 style="color:#7c3aed">Veille performance concurrents — ' + s.aujourdhui + '</h2>' +
+  '<p>' + s.total + ' publication(s) analysée(s), ' + s.nbCreations + ' nouvelle(s), ' +
+  s.nbSurperformants + ' au-dessus du seuil de 1,5×.</p>' +
+  '<h3>Top surperformances</h3>' + top +
+  blocDormants + blocErreurs +
+  '<p style="color:#666;font-size:12px">Détail et analyses dans la base Notion « Posts Concurrents ».</p>';
+
+return [{ json: { corps, sujet: 'Veille performance concurrents — ' + s.aujourdhui } }];`;
+
 // ---------------------------------------------------------------------------
 // Fabriques de nœuds
 // ---------------------------------------------------------------------------
 
-function noeudCode(nom, code, position) {
+// mode "runOnceForEachItem" quand le nœud doit s'exécuter une fois par item —
+// c'est le cas de la cascade LLM, qui fait un appel par publication. Le défaut
+// de N8N est "une fois pour tous les items", où `$json` ne désigne que le
+// premier : s'y fier silencieusement ne traiterait qu'une publication sur N.
+function noeudCode(nom, code, position, parItem = false) {
     return {
-        parameters: { jsCode: code },
+        parameters: parItem ? { mode: "runOnceForEachItem", jsCode: code } : { jsCode: code },
         id: idStable(nom),
         name: nom,
         type: "n8n-nodes-base.code",
@@ -433,6 +652,64 @@ export function genererWorkflow(lib) {
             typeVersion: 1,
             position: [1760, 500],
         },
+
+        // ----- Qualification LLM + rapport -----
+        // Branchées après "Maj Comptes", seul nœud d'écriture garanti de tourner
+        // (un item par compte actif). Les créations sont donc déjà écrites, et
+        // une publication créée à l'instant a bien un identifiant de page.
+        {
+            parameters: {
+                resource: "databasePage",
+                operation: "getAll",
+                databaseId: { __rl: true, mode: "url", value: POSTS_DB_URL },
+                returnAll: true,
+                simple: false,
+                options: {},
+            },
+            id: idStable("Lire Posts A Qualifier"),
+            name: "Lire Posts A Qualifier",
+            type: "n8n-nodes-base.notion",
+            typeVersion: 2,
+            position: [2200, 300],
+        },
+        noeudCode("Filtrer A Qualifier", CODE_FILTRER_A_QUALIFIER, [2420, 300]),
+        noeudCode("Build Prompt Qualification", CODE_BUILD_PROMPT, [2640, 300]),
+        noeudCode("Cascade LLM Qualification", CODE_CASCADE, [2860, 300], true),
+        noeudCode("Parser Qualification", CODE_PARSER, [3080, 300]),
+        {
+            parameters: {
+                resource: "databasePage",
+                operation: "update",
+                pageId: { __rl: true, mode: "id", value: "={{ $json.pageId }}" },
+                simple: false,
+                propertiesUi: {
+                    propertyValues: [
+                        proprieteTexte("Analyse IA", "={{ $json.analyse }}"),
+                        { key: "Transposable Anna|select", selectValue: "={{ $json.transposable }}" },
+                    ],
+                },
+                options: {},
+            },
+            id: idStable("Maj Analyse Posts"),
+            name: "Maj Analyse Posts",
+            type: "n8n-nodes-base.notion",
+            typeVersion: 2,
+            position: [3300, 300],
+        },
+        noeudCode("Agreger Mail", CODE_AGREGER_MAIL, [2200, 500]),
+        {
+            parameters: {
+                sendTo: "anna.ollivier.psy@gmail.com",
+                subject: "={{ $json.sujet }}",
+                message: "={{ $json.corps }}",
+                options: {},
+            },
+            id: idStable("Gmail Rapport"),
+            name: "Gmail Rapport",
+            type: "n8n-nodes-base.gmail",
+            typeVersion: 2.1,
+            position: [2420, 500],
+        },
     ];
 
     const connexions = {
@@ -458,6 +735,21 @@ export function genererWorkflow(lib) {
         "Filtrer Creations": { main: [[{ node: "Creer Posts", type: "main", index: 0 }]] },
         "Filtrer Majs": { main: [[{ node: "Maj Posts", type: "main", index: 0 }]] },
         "Filtrer Comptes": { main: [[{ node: "Maj Comptes", type: "main", index: 0 }]] },
+        // Qualification d'abord, rapport ensuite : le mail ne dépend pas des
+        // analyses (il renvoie vers Notion), mais cet ordre évite qu'une panne
+        // LLM ne retarde l'envoi.
+        "Maj Comptes": {
+            main: [[
+                { node: "Lire Posts A Qualifier", type: "main", index: 0 },
+                { node: "Agreger Mail", type: "main", index: 0 },
+            ]],
+        },
+        "Lire Posts A Qualifier": { main: [[{ node: "Filtrer A Qualifier", type: "main", index: 0 }]] },
+        "Filtrer A Qualifier": { main: [[{ node: "Build Prompt Qualification", type: "main", index: 0 }]] },
+        "Build Prompt Qualification": { main: [[{ node: "Cascade LLM Qualification", type: "main", index: 0 }]] },
+        "Cascade LLM Qualification": { main: [[{ node: "Parser Qualification", type: "main", index: 0 }]] },
+        "Parser Qualification": { main: [[{ node: "Maj Analyse Posts", type: "main", index: 0 }]] },
+        "Agreger Mail": { main: [[{ node: "Gmail Rapport", type: "main", index: 0 }]] },
     };
 
     return {

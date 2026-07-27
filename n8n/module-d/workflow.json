@@ -429,6 +429,151 @@
         1760,
         500
       ]
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "getAll",
+        "databaseId": {
+          "__rl": true,
+          "mode": "url",
+          "value": "https://www.notion.so/4ad61bf0d0374dc78298d20b91a756ee"
+        },
+        "returnAll": true,
+        "simple": false,
+        "options": {}
+      },
+      "id": "cdbf708b-4433-429c-acdb-cdbf708b4433",
+      "name": "Lire Posts A Qualifier",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Publications à faire qualifier par le LLM.\n// On relit l'état réel de Notion plutôt que la sortie du calcul : à ce stade\n// les créations sont écrites, donc les nouvelles publications ont un identifiant\n// de page et peuvent recevoir leur analyse dès cette exécution.\nconst SEUIL = 1.5;\nconst MAX_PAR_EXECUTION = 8;\n\nconst txt = (prop) => {\n  if (!prop || !Array.isArray(prop.rich_text)) return '';\n  return prop.rich_text.map((t) => t.plain_text || (t.text && t.text.content) || '').join('');\n};\n\nconst candidats = $input.all()\n  .map((i) => i.json)\n  .filter((page) => page && page.properties)\n  .map((page) => {\n    const p = page.properties;\n    return {\n      pageId: page.id,\n      score: p['Score surperformance'] && typeof p['Score surperformance'].number === 'number' ? p['Score surperformance'].number : null,\n      dejaAnalyse: txt(p['Analyse IA']).trim().length > 0,\n      accroche: (p['Accroche'].title || []).map((t) => t.plain_text).join(''),\n      legende: '',\n      handle: txt(p['Handle']),\n      plateforme: p['Plateforme'] && p['Plateforme'].select ? p['Plateforme'].select.name : '',\n      type: p['Type'] && p['Type'].select ? p['Type'].select.name : '',\n      metriqueScore: p['Métrique de score'] && p['Métrique de score'].select ? p['Métrique de score'].select.name : 'Vues',\n      vues: p['Vues'] && typeof p['Vues'].number === 'number' ? p['Vues'].number : 0,\n      likes: p['Likes'] && typeof p['Likes'].number === 'number' ? p['Likes'].number : 0,\n      url: p['URL post'] ? p['URL post'].url : ''\n    };\n  })\n  // L'analyse n'est jamais repayée : une publication déjà qualifiée est ignorée.\n  .filter((c) => c.score !== null && c.score >= SEUIL && !c.dejaAnalyse)\n  .sort((a, b) => b.score - a.score)\n  .slice(0, MAX_PAR_EXECUTION);\n\n// Les légendes complètes ne sont pas dans Notion (seule l'accroche l'est).\n// On les récupère depuis le lot fraîchement collecté quand elles y sont.\nconst collecte = $('Normaliser').first().json.posts || [];\nconst parAccroche = {};\nfor (const p of collecte) parAccroche[p.accroche] = p.legende;\n\nreturn candidats.map((c) => ({ json: { ...c, legende: parAccroche[c.accroche] || c.accroche } }));"
+      },
+      "id": "253058aa-3887-40eb-a253-253058aa3887",
+      "name": "Filtrer A Qualifier",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Un prompt par publication. Le nœud cascade en aval tourne une fois par item.\nreturn $input.all().map((item) => {\nconst p = item.json;\nconst valeur = p.metriqueScore === 'Likes' ? p.likes : p.vues;\n\nconst prompt = `Tu analyses une publication de concurrent qui a nettement surperformé par rapport à la moyenne de son propre compte.\n\nCompte : @${p.handle} sur ${p.plateforme}\nType : ${p.type}\nScore de surperformance : ${p.score}× la moyenne habituelle de ce compte\nMétrique : ${p.metriqueScore} — ${valeur}\nLégende : ${String(p.legende || '').slice(0, 1500)}\n\nContexte : Anna Ollivier est psychologue clinicienne, spécialisée en développement émotionnel de l'enfant. Elle crée du contenu pour les parents.\n\nRéponds UNIQUEMENT en JSON valide, sans backtick ni commentaire :\n{\n  \"angle\": [\"deux à quatre mots-clés d'angle éditorial\"],\n  \"format\": \"description courte du format\",\n  \"accroche\": \"type d'accroche utilisé\",\n  \"pourquoi\": \"deux phrases maximum sur ce qui explique la performance\",\n  \"transposable\": \"Oui | Non | À adapter\"\n}`;\n\nreturn { json: { prompt, pageId: p.pageId } };\n});"
+      },
+      "id": "160fce9a-32ff-4ca5-a160-160fce9a32ff",
+      "name": "Build Prompt Qualification",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Cascade LLM — Qualification des publications surperformantes.\n// Même patron que les nœuds cascade des Modules B et C.\n// 1. Anthropic Claude Sonnet 4.6  2. deepseek-v4-pro:cloud  3. qwen2.5:3b\n//\n// À RENSEIGNER APRÈS IMPORT : coller la clé Anthropic ci-dessous.\n// Elle n'est volontairement pas versionnée — un export de workflow finit dans git.\n// La même clé est déjà présente dans le nœud \"Cascade LLM Veille\" du Module B.\nconst ANTHROPIC_API_KEY = 'CLE_ANTHROPIC_A_RENSEIGNER';\n\nconst prompt = $input.item.json.prompt;\nconst pageId = $input.item.json.pageId;\n\nconst moteurs = [\n  { nom: 'Anthropic Claude Sonnet 4.6', type: 'anthropic', url: 'https://api.anthropic.com/v1/messages', apiKey: ANTHROPIC_API_KEY, model: 'claude-sonnet-4-6', timeout: 120000, maxTokens: 800 },\n  { nom: 'deepseek-v4-pro:cloud', type: 'ollama', url: 'http://172.18.0.1:11434/api/chat', model: 'deepseek-v4-pro:cloud', timeout: 540000, think: false, num_predict: 800 },\n  { nom: 'qwen2.5:3b', type: 'ollama', url: 'http://172.18.0.1:11434/api/chat', model: 'qwen2.5:3b', timeout: 540000, num_predict: 800 }\n];\n\nlet responseText = null;\nlet usedModel = null;\nlet lastError = null;\n\nfor (const moteur of moteurs) {\n  try {\n    if (moteur.type === 'anthropic') {\n      const resp = await this.helpers.httpRequest({\n        method: 'POST',\n        url: moteur.url,\n        headers: { 'x-api-key': moteur.apiKey, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },\n        body: JSON.stringify({ model: moteur.model, max_tokens: moteur.maxTokens, messages: [{ role: 'user', content: prompt }] }),\n        timeout: moteur.timeout\n      });\n      if (resp && resp.content && resp.content[0] && resp.content[0].text) {\n        responseText = resp.content[0].text;\n        usedModel = moteur.nom;\n        break;\n      }\n    } else {\n      const reqBody = { model: moteur.model, messages: [{ role: 'user', content: prompt }], stream: false, options: { num_predict: moteur.num_predict } };\n      if (moteur.think === false) reqBody.think = false;\n      const resp = await this.helpers.httpRequest({ method: 'POST', url: moteur.url, body: JSON.stringify(reqBody), timeout: moteur.timeout });\n      if (resp && resp.message && resp.message.content) {\n        responseText = resp.message.content;\n        usedModel = moteur.nom;\n        break;\n      }\n    }\n  } catch (e) {\n    lastError = e.message;\n    continue;\n  }\n}\n\n// Une panne LLM ne doit pas faire perdre la collecte : la publication est\n// simplement laissée sans analyse et sera requalifiée au passage suivant.\nif (!responseText) {\n  return { json: { pageId, echec: true, message: 'Tous les moteurs LLM ont échoué : ' + (lastError || 'inconnue') } };\n}\n\nreturn { json: { pageId, echec: false, moteur: usedModel, content: [{ type: 'text', text: responseText }] } };"
+      },
+      "id": "2331cf72-6d33-4255-a233-2331cf726d33",
+      "name": "Cascade LLM Qualification",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2860,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const resultats = [];\n\nfor (const item of $input.all()) {\n  const j = item.json;\n\n  if (j.echec) continue;\n\n  const brut = (j.content && j.content[0] && j.content[0].text) || '';\n  const nettoye = brut.replace(/```json/g, '').replace(/```/g, '').trim();\n\n  let data = null;\n  try {\n    data = JSON.parse(nettoye);\n  } catch (e) {\n    const debut = nettoye.indexOf('{');\n    const fin = nettoye.lastIndexOf('}');\n    if (debut !== -1 && fin !== -1) {\n      try { data = JSON.parse(nettoye.slice(debut, fin + 1)); } catch (e2) { data = null; }\n    }\n  }\n\n  if (!data) continue;\n\n  const angles = Array.isArray(data.angle) ? data.angle.slice(0, 4).join(', ') : String(data.angle || '');\n  const transposable = ['Oui', 'Non', 'À adapter'].includes(data.transposable) ? data.transposable : 'À adapter';\n\n  // Notion refuse tout objet rich_text au-delà de 2000 caractères.\n  const analyse = [\n    'Angle : ' + angles,\n    'Format : ' + (data.format || ''),\n    'Accroche : ' + (data.accroche || ''),\n    '',\n    data.pourquoi || ''\n  ].join('\\n').slice(0, 1900);\n\n  resultats.push({ json: { pageId: j.pageId, analyse, transposable, moteur: j.moteur } });\n}\n\nreturn resultats;"
+      },
+      "id": "574a42be-a7ec-4b8d-a574-574a42bea7ec",
+      "name": "Parser Qualification",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3080,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "update",
+        "pageId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.pageId }}"
+        },
+        "simple": false,
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Analyse IA|rich_text",
+              "richText": true,
+              "text": {
+                "text": [
+                  {
+                    "text": "={{ $json.analyse }}",
+                    "annotationUi": {}
+                  }
+                ]
+              }
+            },
+            {
+              "key": "Transposable Anna|select",
+              "selectValue": "={{ $json.transposable }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b741e7c1-9177-4c13-ab74-b741e7c19177",
+      "name": "Maj Analyse Posts",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2,
+      "position": [
+        3300,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const s = $('Scorer').first().json;\n\nconst lien = (p) => p.url || '';\nconst ligne = (p, i) => {\n  const valeur = p.metriqueScore === 'Likes' ? p.likes + ' likes' : p.vues + ' vues';\n  return '<div style=\"border:1px solid #e0e0e0;border-radius:8px;padding:14px;margin:10px 0;\">' +\n    '<strong style=\"color:#7c3aed\">' + p.score + '× la moyenne du compte</strong> — @' + p.handle +\n    ' (' + p.plateforme + ', ' + p.type + ')<br>' +\n    '<em>' + (p.accroche || '') + '</em><br>' +\n    valeur + ' · <a href=\"' + lien(p) + '\">voir la publication</a></div>';\n};\n\nconst top = (s.surperformants || []).slice(0, 5).map(ligne).join('') ||\n  '<p>Aucune publication au-dessus du seuil cette semaine.</p>';\n\n// Un compte sans aucune publication en base est dormant ou mal saisi.\n// Sans ce signalement, rien ne le distingue d'une collecte réussie mais vide.\nconst dormants = (s.majComptes || []).filter((c) => !c.nbBaseline);\nconst blocDormants = dormants.length\n  ? '<h3>Comptes sans publication récente</h3><p>' + dormants.length +\n    ' compte(s) actif(s) n\\'ont rien publié dans la fenêtre analysée. ' +\n    'Vérifie qu\\'ils sont toujours pertinents.</p>'\n  : '';\n\nconst blocErreurs = (s.erreurs || []).length\n  ? '<h3 style=\"color:#b91c1c\">Incidents de collecte</h3><p>' + s.erreurs.join('<br>') + '</p>'\n  : '';\n\nconst corps = '<h2 style=\"color:#7c3aed\">Veille performance concurrents — ' + s.aujourdhui + '</h2>' +\n  '<p>' + s.total + ' publication(s) analysée(s), ' + s.nbCreations + ' nouvelle(s), ' +\n  s.nbSurperformants + ' au-dessus du seuil de 1,5×.</p>' +\n  '<h3>Top surperformances</h3>' + top +\n  blocDormants + blocErreurs +\n  '<p style=\"color:#666;font-size:12px\">Détail et analyses dans la base Notion « Posts Concurrents ».</p>';\n\nreturn [{ json: { corps, sujet: 'Veille performance concurrents — ' + s.aujourdhui } }];"
+      },
+      "id": "454ca635-d372-4a93-a454-454ca635d372",
+      "name": "Agreger Mail",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "anna.ollivier.psy@gmail.com",
+        "subject": "={{ $json.sujet }}",
+        "message": "={{ $json.corps }}",
+        "options": {}
+      },
+      "id": "45782c71-8268-49ce-a457-45782c718268",
+      "name": "Gmail Rapport",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2420,
+        500
+      ]
     }
   ],
   "connections": {
@@ -573,6 +718,88 @@
         [
           {
             "node": "Maj Comptes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Maj Comptes": {
+      "main": [
+        [
+          {
+            "node": "Lire Posts A Qualifier",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Agreger Mail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lire Posts A Qualifier": {
+      "main": [
+        [
+          {
+            "node": "Filtrer A Qualifier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filtrer A Qualifier": {
+      "main": [
+        [
+          {
+            "node": "Build Prompt Qualification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Prompt Qualification": {
+      "main": [
+        [
+          {
+            "node": "Cascade LLM Qualification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cascade LLM Qualification": {
+      "main": [
+        [
+          {
+            "node": "Parser Qualification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parser Qualification": {
+      "main": [
+        [
+          {
+            "node": "Maj Analyse Posts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agreger Mail": {
+      "main": [
+        [
+          {
+            "node": "Gmail Rapport",
             "type": "main",
             "index": 0
           }

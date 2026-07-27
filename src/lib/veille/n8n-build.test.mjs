@@ -44,16 +44,38 @@ test("le workflow n8n/module-d/workflow.json est à jour", () => {
     );
 });
 
-test("chaque nœud Code du workflow est du JavaScript valide hors module", () => {
+// N8N enveloppe le corps d'un nœud Code dans une fonction asynchrone : `await`
+// au niveau supérieur y est légal. Compiler avec AsyncFunction plutôt qu'avec
+// Function reproduit l'environnement réel — sinon la cascade LLM, qui attend
+// ses appels HTTP, serait signalée à tort comme invalide.
+const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+
+test("chaque nœud Code du workflow compile comme un nœud Code N8N", () => {
     const workflow = JSON.parse(readFileSync(CHEMIN_WORKFLOW, "utf8"));
     const noeudsCode = workflow.nodes.filter((n) => n.type === "n8n-nodes-base.code");
     assert.ok(noeudsCode.length > 0, "aucun nœud Code trouvé dans le workflow");
     for (const noeud of noeudsCode) {
         assert.doesNotThrow(
-            () => new Function(noeud.parameters.jsCode),
+            () => new AsyncFunction(noeud.parameters.jsCode),
             `le nœud Code "${noeud.name}" ne parse pas`
         );
     }
+});
+
+test("les nœuds qui font un appel par publication tournent bien par item", () => {
+    const workflow = JSON.parse(readFileSync(CHEMIN_WORKFLOW, "utf8"));
+    const cascade = workflow.nodes.find((n) => n.name === "Cascade LLM Qualification");
+    // Le défaut de N8N est « une fois pour tous les items », où $json ne
+    // désigne que le premier : une seule publication sur N serait qualifiée.
+    assert.equal(cascade.parameters.mode, "runOnceForEachItem");
+    assert.match(cascade.parameters.jsCode, /\$input\.item\.json/);
+});
+
+test("aucune clé Anthropic n'est versionnée dans le workflow", () => {
+    const workflow = JSON.parse(readFileSync(CHEMIN_WORKFLOW, "utf8"));
+    const cascade = workflow.nodes.find((n) => n.name === "Cascade LLM Qualification");
+    assert.match(cascade.parameters.jsCode, /CLE_ANTHROPIC_A_RENSEIGNER/);
+    assert.equal(/sk-ant-/.test(cascade.parameters.jsCode), false);
 });
 
 test("les nœuds métier embarquent bien la logique testée", () => {
