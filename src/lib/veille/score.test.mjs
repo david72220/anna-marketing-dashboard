@@ -65,3 +65,160 @@ test("un historique vide donne une moyenne nulle", () => {
     assert.equal(r.moyenne, 0);
     assert.equal(r.echantillon, 0);
 });
+
+test("une entrée avec la métrique à null est exclue de la moyenne et de l'échantillon", () => {
+    const historique = [
+        post("a", { vues: 100 }),
+        post("b", { vues: 120 }),
+        {
+            postId: "c",
+            handle: "concurrent1",
+            plateforme: "Instagram",
+            metriqueScore: "Vues",
+            vues: null,
+            likes: 0,
+            datePublication: "2026-07-03T00:00:00.000Z",
+        },
+        {
+            postId: "d",
+            handle: "concurrent1",
+            plateforme: "Instagram",
+            metriqueScore: "Vues",
+            vues: null,
+            likes: 0,
+            datePublication: "2026-07-04T00:00:00.000Z",
+        },
+    ];
+    const r = moyenneReference(post("z"), historique);
+    assert.equal(r.moyenne, 110);
+    assert.equal(r.echantillon, 2);
+});
+
+test("une valeur non numérique est exclue et la moyenne n'est jamais NaN", () => {
+    const historique = [
+        post("a", { vues: 100 }),
+        {
+            postId: "b",
+            handle: "concurrent1",
+            plateforme: "Instagram",
+            metriqueScore: "Vues",
+            vues: "beaucoup",
+            likes: 0,
+            datePublication: "2026-07-02T00:00:00.000Z",
+        },
+    ];
+    const r = moyenneReference(post("z"), historique);
+    assert.equal(r.moyenne, 100);
+    assert.equal(r.echantillon, 1);
+    assert.equal(Number.isNaN(r.moyenne), false);
+});
+
+test("les entrées sans date exploitable sont exclues et n'entrent pas dans la fenêtre de 30", () => {
+    const historique = [];
+    for (let i = 0; i < 30; i++) {
+        historique.push(
+            post(`p${i}`, {
+                vues: 100,
+                date: new Date(Date.UTC(2026, 0, 1 + i)).toISOString(),
+            })
+        );
+    }
+    historique.push({
+        postId: "nodate1",
+        handle: "concurrent1",
+        plateforme: "Instagram",
+        metriqueScore: "Vues",
+        vues: 999999,
+        likes: 0,
+        datePublication: null,
+    });
+    historique.push({
+        postId: "nodate2",
+        handle: "concurrent1",
+        plateforme: "Instagram",
+        metriqueScore: "Vues",
+        vues: 999999,
+        likes: 0,
+        datePublication: undefined,
+    });
+    historique.push({
+        postId: "nodate3",
+        handle: "concurrent1",
+        plateforme: "Instagram",
+        metriqueScore: "Vues",
+        vues: 999999,
+        likes: 0,
+    });
+    const r = moyenneReference(post("z"), historique);
+    assert.equal(r.echantillon, 30);
+    assert.equal(r.moyenne, 100);
+});
+
+test("des instants identiques ou proches dans des fuseaux différents sont ordonnés par instant réel", () => {
+    // 29 posts de remplissage, tous plus RÉCENTS que X et Y (août, vues=100).
+    // Comme ils occupent déjà 29 des 30 places du top, il ne reste qu'UNE place
+    // disputée entre X et Y : le test isole ainsi lequel des deux est retenu.
+    const historique = [];
+    for (let d = 1; d <= 29; d++) {
+        historique.push(
+            post(`filler${d}`, {
+                vues: 100,
+                date: new Date(Date.UTC(2026, 7, d)).toISOString(),
+            })
+        );
+    }
+    // X : écrit avec un décalage +14:00 qui le fait paraître "plus récent" en tri
+    // de chaînes (le "23" bat le "10" lexicographiquement), alors que son instant
+    // réel (09:00 UTC) est ANTÉRIEUR à celui de Y.
+    historique.push(post("x", { vues: 500, date: "2026-07-31T23:00:00.000+14:00" }));
+    // Y : instant réel 10:00 UTC le même jour, donc réellement plus récent que X.
+    historique.push(post("y", { vues: 700, date: "2026-07-31T10:00:00.000Z" }));
+
+    const r = moyenneReference(post("z"), historique);
+    // Le tri correct (par instant) retient Y (700) et exclut X (500) :
+    // moyenne = (29*100 + 700) / 30 = 120.
+    assert.equal(r.echantillon, 30);
+    assert.equal(r.moyenne, 120);
+});
+
+test("un mélange de date seule et d'ISO complet est accepté et pris en compte", () => {
+    const historique = [
+        post("dateonly", { vues: 300, date: "2026-07-10" }),
+        post("early", { vues: 100, date: "2026-07-09T23:00:00.000Z" }),
+        post("late", { vues: 500, date: "2026-07-10T01:00:00.000Z" }),
+    ];
+    const r = moyenneReference(post("z"), historique);
+    assert.equal(r.echantillon, 3);
+    assert.equal(r.moyenne, 300);
+});
+
+test("metriqueScore insensible à la casse pour l'évalué comme pour l'historique", () => {
+    const historique = [
+        post("a", { metriqueScore: "LIKES", likes: 40 }),
+        post("b", { metriqueScore: "likes", likes: 60 }),
+        post("c", { metriqueScore: "Vues", vues: 999 }),
+    ];
+    const r = moyenneReference(post("z", { metriqueScore: "likes" }), historique);
+    assert.equal(r.moyenne, 50);
+    assert.equal(r.echantillon, 2);
+});
+
+test("la même publication en double sous le même postId n'est comptée qu'une fois", () => {
+    const dup = post("a", { vues: 200 });
+    const historique = [dup, { ...dup }, post("b", { vues: 400 })];
+    const r = moyenneReference(post("z"), historique);
+    assert.equal(r.moyenne, 300);
+    assert.equal(r.echantillon, 2);
+});
+
+test("un post évalué undefined ou null ne lève pas d'exception", () => {
+    assert.deepEqual(moyenneReference(undefined, [post("a")]), { moyenne: 0, echantillon: 0 });
+    assert.deepEqual(moyenneReference(null, [post("a")]), { moyenne: 0, echantillon: 0 });
+});
+
+test("un historique contenant des entrées mal formées ne fait pas échouer la fonction", () => {
+    const historique = [null, undefined, 42, "string", {}, post("a", { vues: 100 })];
+    const r = moyenneReference(post("z"), historique);
+    assert.equal(r.moyenne, 100);
+    assert.equal(r.echantillon, 1);
+});
