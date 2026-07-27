@@ -480,21 +480,44 @@
     },
     {
       "parameters": {
-        "mode": "runOnceForEachItem",
-        "jsCode": "// Cascade LLM — Qualification des publications surperformantes.\n// Même patron que les nœuds cascade des Modules B et C.\n// 1. Anthropic Claude Sonnet 4.6  2. deepseek-v4-pro:cloud  3. qwen2.5:3b\n//\n// À RENSEIGNER APRÈS IMPORT : coller la clé Anthropic ci-dessous.\n// Elle n'est volontairement pas versionnée — un export de workflow finit dans git.\n// La même clé est déjà présente dans le nœud \"Cascade LLM Veille\" du Module B.\nconst ANTHROPIC_API_KEY = 'CLE_ANTHROPIC_A_RENSEIGNER';\n\nconst prompt = $input.item.json.prompt;\nconst pageId = $input.item.json.pageId;\n\nconst moteurs = [\n  { nom: 'Anthropic Claude Sonnet 4.6', type: 'anthropic', url: 'https://api.anthropic.com/v1/messages', apiKey: ANTHROPIC_API_KEY, model: 'claude-sonnet-4-6', timeout: 120000, maxTokens: 800 },\n  { nom: 'deepseek-v4-pro:cloud', type: 'ollama', url: 'http://172.18.0.1:11434/api/chat', model: 'deepseek-v4-pro:cloud', timeout: 540000, think: false, num_predict: 800 },\n  { nom: 'qwen2.5:3b', type: 'ollama', url: 'http://172.18.0.1:11434/api/chat', model: 'qwen2.5:3b', timeout: 540000, num_predict: 800 }\n];\n\nlet responseText = null;\nlet usedModel = null;\nlet lastError = null;\n\nfor (const moteur of moteurs) {\n  try {\n    if (moteur.type === 'anthropic') {\n      const resp = await this.helpers.httpRequest({\n        method: 'POST',\n        url: moteur.url,\n        headers: { 'x-api-key': moteur.apiKey, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },\n        body: JSON.stringify({ model: moteur.model, max_tokens: moteur.maxTokens, messages: [{ role: 'user', content: prompt }] }),\n        timeout: moteur.timeout\n      });\n      if (resp && resp.content && resp.content[0] && resp.content[0].text) {\n        responseText = resp.content[0].text;\n        usedModel = moteur.nom;\n        break;\n      }\n    } else {\n      const reqBody = { model: moteur.model, messages: [{ role: 'user', content: prompt }], stream: false, options: { num_predict: moteur.num_predict } };\n      if (moteur.think === false) reqBody.think = false;\n      const resp = await this.helpers.httpRequest({ method: 'POST', url: moteur.url, body: JSON.stringify(reqBody), timeout: moteur.timeout });\n      if (resp && resp.message && resp.message.content) {\n        responseText = resp.message.content;\n        usedModel = moteur.nom;\n        break;\n      }\n    }\n  } catch (e) {\n    lastError = e.message;\n    continue;\n  }\n}\n\n// Une panne LLM ne doit pas faire perdre la collecte : la publication est\n// simplement laissée sans analyse et sera requalifiée au passage suivant.\nif (!responseText) {\n  return { json: { pageId, echec: true, message: 'Tous les moteurs LLM ont échoué : ' + (lastError || 'inconnue') } };\n}\n\nreturn { json: { pageId, echec: false, moteur: usedModel, content: [{ type: 'text', text: responseText }] } };"
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 800, messages: [{ role: 'user', content: $json.prompt }] }) }}",
+        "options": {
+          "timeout": 120000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
       },
-      "id": "2331cf72-6d33-4255-a233-2331cf726d33",
-      "name": "Cascade LLM Qualification",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
+      "id": "9f7c1be1-34d9-43f2-a9f7-9f7c1be134d9",
+      "name": "Appel Anthropic",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [
         2860,
         300
-      ]
+      ],
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
-        "jsCode": "const resultats = [];\n\nfor (const item of $input.all()) {\n  const j = item.json;\n\n  if (j.echec) continue;\n\n  const brut = (j.content && j.content[0] && j.content[0].text) || '';\n  const nettoye = brut.replace(/```json/g, '').replace(/```/g, '').trim();\n\n  let data = null;\n  try {\n    data = JSON.parse(nettoye);\n  } catch (e) {\n    const debut = nettoye.indexOf('{');\n    const fin = nettoye.lastIndexOf('}');\n    if (debut !== -1 && fin !== -1) {\n      try { data = JSON.parse(nettoye.slice(debut, fin + 1)); } catch (e2) { data = null; }\n    }\n  }\n\n  if (!data) continue;\n\n  const angles = Array.isArray(data.angle) ? data.angle.slice(0, 4).join(', ') : String(data.angle || '');\n  const transposable = ['Oui', 'Non', 'À adapter'].includes(data.transposable) ? data.transposable : 'À adapter';\n\n  // Notion refuse tout objet rich_text au-delà de 2000 caractères.\n  const analyse = [\n    'Angle : ' + angles,\n    'Format : ' + (data.format || ''),\n    'Accroche : ' + (data.accroche || ''),\n    '',\n    data.pourquoi || ''\n  ].join('\\n').slice(0, 1900);\n\n  resultats.push({ json: { pageId: j.pageId, analyse, transposable, moteur: j.moteur } });\n}\n\nreturn resultats;"
+        "jsCode": "const resultats = [];\n\n// Le nœud HTTP Request ne réémet pas les champs d'entrée : on réapparie la\n// réponse à sa publication par l'index. Le nœud émet un item par item d'entrée,\n// dans l'ordre, mais on vérifie quand même plutôt que de supposer.\nconst demandes = $('Build Prompt Qualification').all().map((i) => i.json);\nconst reponses = $input.all();\n\nif (reponses.length !== demandes.length) {\n  throw new Error(\n    'Appariement impossible : ' + reponses.length + ' réponse(s) pour ' +\n    demandes.length + ' demande(s). Aucune analyse écrite pour éviter de les attribuer au mauvais post.'\n  );\n}\n\nfor (let i = 0; i < reponses.length; i++) {\n  const j = reponses[i].json;\n  const pageId = demandes[i].pageId;\n\n  // onError: continueRegularOutput fait passer un échec HTTP comme un item normal.\n  if (!j || j.error) continue;\n\n  const brut = (j.content && j.content[0] && j.content[0].text) || '';\n  const nettoye = brut.replace(/```json/g, '').replace(/```/g, '').trim();\n\n  let data = null;\n  try {\n    data = JSON.parse(nettoye);\n  } catch (e) {\n    const debut = nettoye.indexOf('{');\n    const fin = nettoye.lastIndexOf('}');\n    if (debut !== -1 && fin !== -1) {\n      try { data = JSON.parse(nettoye.slice(debut, fin + 1)); } catch (e2) { data = null; }\n    }\n  }\n\n  if (!data) continue;\n\n  const angles = Array.isArray(data.angle) ? data.angle.slice(0, 4).join(', ') : String(data.angle || '');\n  const transposable = ['Oui', 'Non', 'À adapter'].includes(data.transposable) ? data.transposable : 'À adapter';\n\n  // Notion refuse tout objet rich_text au-delà de 2000 caractères.\n  const analyse = [\n    'Angle : ' + angles,\n    'Format : ' + (data.format || ''),\n    'Accroche : ' + (data.accroche || ''),\n    '',\n    data.pourquoi || ''\n  ].join('\\n').slice(0, 1900);\n\n  resultats.push({ json: { pageId, analyse, transposable } });\n}\n\nreturn resultats;"
       },
       "id": "574a42be-a7ec-4b8d-a574-574a42bea7ec",
       "name": "Parser Qualification",
@@ -766,14 +789,14 @@
       "main": [
         [
           {
-            "node": "Cascade LLM Qualification",
+            "node": "Appel Anthropic",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Cascade LLM Qualification": {
+    "Appel Anthropic": {
       "main": [
         [
           {

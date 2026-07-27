@@ -271,76 +271,40 @@ Réponds UNIQUEMENT en JSON valide, sans backtick ni commentaire :
 return { json: { prompt, pageId: p.pageId } };
 });`;
 
-const CODE_CASCADE = `// Cascade LLM — Qualification des publications surperformantes.
-// Même patron que les nœuds cascade des Modules B et C.
-// 1. Anthropic Claude Sonnet 4.6  2. deepseek-v4-pro:cloud  3. qwen2.5:3b
+// Pas de nœud Code pour l'appel LLM : un nœud Code N8N ne peut ni lire $env ni
+// utiliser httpRequestWithAuthentication, donc y appeler une API authentifiée
+// imposerait d'écrire la clé en dur — ce qu'un export de workflow versionnerait.
+// L'appel passe donc par un nœud HTTP Request avec credential.
 //
-// À RENSEIGNER APRÈS IMPORT : coller la clé Anthropic ci-dessous.
-// Elle n'est volontairement pas versionnée — un export de workflow finit dans git.
-// La même clé est déjà présente dans le nœud "Cascade LLM Veille" du Module B.
-const ANTHROPIC_API_KEY = 'CLE_ANTHROPIC_A_RENSEIGNER';
-
-const prompt = $input.item.json.prompt;
-const pageId = $input.item.json.pageId;
-
-const moteurs = [
-  { nom: 'Anthropic Claude Sonnet 4.6', type: 'anthropic', url: 'https://api.anthropic.com/v1/messages', apiKey: ANTHROPIC_API_KEY, model: 'claude-sonnet-4-6', timeout: 120000, maxTokens: 800 },
-  { nom: 'deepseek-v4-pro:cloud', type: 'ollama', url: 'http://172.18.0.1:11434/api/chat', model: 'deepseek-v4-pro:cloud', timeout: 540000, think: false, num_predict: 800 },
-  { nom: 'qwen2.5:3b', type: 'ollama', url: 'http://172.18.0.1:11434/api/chat', model: 'qwen2.5:3b', timeout: 540000, num_predict: 800 }
-];
-
-let responseText = null;
-let usedModel = null;
-let lastError = null;
-
-for (const moteur of moteurs) {
-  try {
-    if (moteur.type === 'anthropic') {
-      const resp = await this.helpers.httpRequest({
-        method: 'POST',
-        url: moteur.url,
-        headers: { 'x-api-key': moteur.apiKey, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: moteur.model, max_tokens: moteur.maxTokens, messages: [{ role: 'user', content: prompt }] }),
-        timeout: moteur.timeout
-      });
-      if (resp && resp.content && resp.content[0] && resp.content[0].text) {
-        responseText = resp.content[0].text;
-        usedModel = moteur.nom;
-        break;
-      }
-    } else {
-      const reqBody = { model: moteur.model, messages: [{ role: 'user', content: prompt }], stream: false, options: { num_predict: moteur.num_predict } };
-      if (moteur.think === false) reqBody.think = false;
-      const resp = await this.helpers.httpRequest({ method: 'POST', url: moteur.url, body: JSON.stringify(reqBody), timeout: moteur.timeout });
-      if (resp && resp.message && resp.message.content) {
-        responseText = resp.message.content;
-        usedModel = moteur.nom;
-        break;
-      }
-    }
-  } catch (e) {
-    lastError = e.message;
-    continue;
-  }
-}
-
-// Une panne LLM ne doit pas faire perdre la collecte : la publication est
-// simplement laissée sans analyse et sera requalifiée au passage suivant.
-if (!responseText) {
-  return { json: { pageId, echec: true, message: 'Tous les moteurs LLM ont échoué : ' + (lastError || 'inconnue') } };
-}
-
-return { json: { pageId, echec: false, moteur: usedModel, content: [{ type: 'text', text: responseText }] } };`;
+// Conséquence assumée : pas de repli deepseek/qwen ici, contrairement aux
+// Modules A/B/C. Là-bas la sortie LLM est le livrable ; ici c'est un
+// enrichissement, et une publication non qualifiée est automatiquement reprise
+// à l'exécution suivante puisque le filtre ne retient que les analyses vides.
 
 // Tourne une fois pour tous les items : les publications dont la qualification
 // a échoué sont simplement écartées du flux, sans nœud IF supplémentaire. Leur
 // champ Analyse IA reste vide, donc elles repasseront à la prochaine exécution.
 const CODE_PARSER = `const resultats = [];
 
-for (const item of $input.all()) {
-  const j = item.json;
+// Le nœud HTTP Request ne réémet pas les champs d'entrée : on réapparie la
+// réponse à sa publication par l'index. Le nœud émet un item par item d'entrée,
+// dans l'ordre, mais on vérifie quand même plutôt que de supposer.
+const demandes = $('Build Prompt Qualification').all().map((i) => i.json);
+const reponses = $input.all();
 
-  if (j.echec) continue;
+if (reponses.length !== demandes.length) {
+  throw new Error(
+    'Appariement impossible : ' + reponses.length + ' réponse(s) pour ' +
+    demandes.length + ' demande(s). Aucune analyse écrite pour éviter de les attribuer au mauvais post.'
+  );
+}
+
+for (let i = 0; i < reponses.length; i++) {
+  const j = reponses[i].json;
+  const pageId = demandes[i].pageId;
+
+  // onError: continueRegularOutput fait passer un échec HTTP comme un item normal.
+  if (!j || j.error) continue;
 
   const brut = (j.content && j.content[0] && j.content[0].text) || '';
   const nettoye = brut.replace(/\`\`\`json/g, '').replace(/\`\`\`/g, '').trim();
@@ -370,7 +334,7 @@ for (const item of $input.all()) {
     data.pourquoi || ''
   ].join('\\n').slice(0, 1900);
 
-  resultats.push({ json: { pageId: j.pageId, analyse, transposable, moteur: j.moteur } });
+  resultats.push({ json: { pageId, analyse, transposable } });
 }
 
 return resultats;`;
@@ -416,13 +380,13 @@ return [{ json: { corps, sujet: 'Veille performance concurrents — ' + s.aujour
 // Fabriques de nœuds
 // ---------------------------------------------------------------------------
 
-// mode "runOnceForEachItem" quand le nœud doit s'exécuter une fois par item —
-// c'est le cas de la cascade LLM, qui fait un appel par publication. Le défaut
-// de N8N est "une fois pour tous les items", où `$json` ne désigne que le
-// premier : s'y fier silencieusement ne traiterait qu'une publication sur N.
-function noeudCode(nom, code, position, parItem = false) {
+// Tous les nœuds Code d'ici tournent en mode "une fois pour tous les items"
+// (le défaut N8N) et manipulent explicitement $input.all(). Le nœud HTTP
+// Request, lui, s'exécute automatiquement une fois par item d'entrée : c'est
+// ce qui donne un appel LLM par publication.
+function noeudCode(nom, code, position) {
     return {
-        parameters: parItem ? { mode: "runOnceForEachItem", jsCode: code } : { jsCode: code },
+        parameters: { jsCode: code },
         id: idStable(nom),
         name: nom,
         type: "n8n-nodes-base.code",
@@ -674,7 +638,32 @@ export function genererWorkflow(lib) {
         },
         noeudCode("Filtrer A Qualifier", CODE_FILTRER_A_QUALIFIER, [2420, 300]),
         noeudCode("Build Prompt Qualification", CODE_BUILD_PROMPT, [2640, 300]),
-        noeudCode("Cascade LLM Qualification", CODE_CASCADE, [2860, 300], true),
+        {
+            parameters: {
+                method: "POST",
+                url: "https://api.anthropic.com/v1/messages",
+                // La clé vit dans un credential N8N, jamais dans le workflow.
+                // Credential attendu : Header Auth, Name = x-api-key, Value = la clé.
+                authentication: "genericCredentialType",
+                genericAuthType: "httpHeaderAuth",
+                sendHeaders: true,
+                headerParameters: {
+                    parameters: [{ name: "anthropic-version", value: "2023-06-01" }],
+                },
+                sendBody: true,
+                specifyBody: "json",
+                jsonBody:
+                    "={{ JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 800, messages: [{ role: 'user', content: $json.prompt }] }) }}",
+                options: { timeout: 120000, response: { response: { neverError: true } } },
+            },
+            id: idStable("Appel Anthropic"),
+            name: "Appel Anthropic",
+            type: "n8n-nodes-base.httpRequest",
+            typeVersion: 4.2,
+            position: [2860, 300],
+            // Un échec de qualification ne doit pas emporter la collecte.
+            onError: "continueRegularOutput",
+        },
         noeudCode("Parser Qualification", CODE_PARSER, [3080, 300]),
         {
             parameters: {
@@ -746,8 +735,8 @@ export function genererWorkflow(lib) {
         },
         "Lire Posts A Qualifier": { main: [[{ node: "Filtrer A Qualifier", type: "main", index: 0 }]] },
         "Filtrer A Qualifier": { main: [[{ node: "Build Prompt Qualification", type: "main", index: 0 }]] },
-        "Build Prompt Qualification": { main: [[{ node: "Cascade LLM Qualification", type: "main", index: 0 }]] },
-        "Cascade LLM Qualification": { main: [[{ node: "Parser Qualification", type: "main", index: 0 }]] },
+        "Build Prompt Qualification": { main: [[{ node: "Appel Anthropic", type: "main", index: 0 }]] },
+        "Appel Anthropic": { main: [[{ node: "Parser Qualification", type: "main", index: 0 }]] },
         "Parser Qualification": { main: [[{ node: "Maj Analyse Posts", type: "main", index: 0 }]] },
         "Agreger Mail": { main: [[{ node: "Gmail Rapport", type: "main", index: 0 }]] },
     };

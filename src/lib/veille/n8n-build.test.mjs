@@ -62,20 +62,32 @@ test("chaque nœud Code du workflow compile comme un nœud Code N8N", () => {
     }
 });
 
-test("les nœuds qui font un appel par publication tournent bien par item", () => {
+test("l'appel Anthropic passe par un credential, jamais par un nœud Code", () => {
     const workflow = JSON.parse(readFileSync(CHEMIN_WORKFLOW, "utf8"));
-    const cascade = workflow.nodes.find((n) => n.name === "Cascade LLM Qualification");
-    // Le défaut de N8N est « une fois pour tous les items », où $json ne
-    // désigne que le premier : une seule publication sur N serait qualifiée.
-    assert.equal(cascade.parameters.mode, "runOnceForEachItem");
-    assert.match(cascade.parameters.jsCode, /\$input\.item\.json/);
+
+    // Un nœud Code N8N ne peut ni lire $env ni utiliser
+    // httpRequestWithAuthentication : y appeler une API authentifiée
+    // imposerait d'écrire la clé en dur, et un export de workflow est versionné.
+    for (const noeud of workflow.nodes.filter((n) => n.type === "n8n-nodes-base.code")) {
+        assert.equal(
+            /api\.anthropic\.com/.test(noeud.parameters.jsCode),
+            false,
+            `le nœud Code "${noeud.name}" appelle Anthropic : cet appel doit passer par un nœud HTTP Request avec credential`
+        );
+    }
+
+    const appel = workflow.nodes.find((n) => n.name === "Appel Anthropic");
+    assert.ok(appel, "nœud Appel Anthropic absent");
+    assert.equal(appel.type, "n8n-nodes-base.httpRequest");
+    assert.equal(appel.parameters.authentication, "genericCredentialType");
+    assert.equal(appel.parameters.genericAuthType, "httpHeaderAuth");
 });
 
-test("aucune clé Anthropic n'est versionnée dans le workflow", () => {
-    const workflow = JSON.parse(readFileSync(CHEMIN_WORKFLOW, "utf8"));
-    const cascade = workflow.nodes.find((n) => n.name === "Cascade LLM Qualification");
-    assert.match(cascade.parameters.jsCode, /CLE_ANTHROPIC_A_RENSEIGNER/);
-    assert.equal(/sk-ant-/.test(cascade.parameters.jsCode), false);
+test("aucun nœud ne contient de clé d'API en clair ni d'emplacement à remplir à la main", () => {
+    const brut = readFileSync(CHEMIN_WORKFLOW, "utf8");
+    for (const motif of [/sk-ant-/, /A_RENSEIGNER/, /x-api-key["\s:]+sk-/i]) {
+        assert.equal(motif.test(brut), false, `motif interdit détecté : ${motif}`);
+    }
 });
 
 test("les nœuds métier embarquent bien la logique testée", () => {
