@@ -13,6 +13,11 @@ const POSTS_DB_URL = "https://www.notion.so/4ad61bf0d0374dc78298d20b91a756ee";
 const FENETRE_JOURS = 14;
 const POSTS_PAR_COMPTE = 15;
 
+// Ollama du VPS depuis le réseau Docker interne : pas d'authentification, donc
+// pas de clé à loger dans le workflow ni dans un credential.
+const OLLAMA_URL = "http://172.18.0.1:11434/api/chat";
+const MODELE_LLM = "glm-5.2:cloud";
+
 // ---------------------------------------------------------------------------
 // Code des nœuds — glue N8N, la logique métier vient de lib.js
 // ---------------------------------------------------------------------------
@@ -306,7 +311,9 @@ for (let i = 0; i < reponses.length; i++) {
   // onError: continueRegularOutput fait passer un échec HTTP comme un item normal.
   if (!j || j.error) continue;
 
-  const brut = (j.content && j.content[0] && j.content[0].text) || '';
+  // Réponse Ollama : { message: { content } }. Un content vide sur un modèle de
+  // raisonnement signale un think non désactivé.
+  const brut = (j.message && j.message.content) || '';
   const nettoye = brut.replace(/\`\`\`json/g, '').replace(/\`\`\`/g, '').trim();
 
   let data = null;
@@ -641,23 +648,20 @@ export function genererWorkflow(lib) {
         {
             parameters: {
                 method: "POST",
-                url: "https://api.anthropic.com/v1/messages",
-                // La clé vit dans un credential N8N, jamais dans le workflow.
-                // Credential attendu : Header Auth, Name = x-api-key, Value = la clé.
-                authentication: "genericCredentialType",
-                genericAuthType: "httpHeaderAuth",
-                sendHeaders: true,
-                headerParameters: {
-                    parameters: [{ name: "anthropic-version", value: "2023-06-01" }],
-                },
+                // Ollama du VPS, joignable sur le réseau Docker interne : aucune
+                // authentification, donc aucun secret dans le workflow ni dans un
+                // credential. L'accès aux modèles :cloud dépend du `ollama login`
+                // fait côté serveur ; un 401 se règle par `ollama login` en SSH.
+                url: OLLAMA_URL,
                 sendBody: true,
                 specifyBody: "json",
-                jsonBody:
-                    "={{ JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 800, messages: [{ role: 'user', content: $json.prompt }] }) }}",
-                options: { timeout: 120000, response: { response: { neverError: true } } },
+                // think: false est obligatoire — sur un modèle de raisonnement, le
+                // « thinking » consomme tout num_predict et message.content revient vide.
+                jsonBody: `={{ JSON.stringify({ model: '${MODELE_LLM}', messages: [{ role: 'user', content: $json.prompt }], stream: false, think: false, options: { num_predict: 800 } }) }}`,
+                options: { timeout: 300000, response: { response: { neverError: true } } },
             },
-            id: idStable("Appel Anthropic"),
-            name: "Appel Anthropic",
+            id: idStable("Appel LLM"),
+            name: "Appel LLM",
             type: "n8n-nodes-base.httpRequest",
             typeVersion: 4.2,
             position: [2860, 300],
@@ -735,8 +739,8 @@ export function genererWorkflow(lib) {
         },
         "Lire Posts A Qualifier": { main: [[{ node: "Filtrer A Qualifier", type: "main", index: 0 }]] },
         "Filtrer A Qualifier": { main: [[{ node: "Build Prompt Qualification", type: "main", index: 0 }]] },
-        "Build Prompt Qualification": { main: [[{ node: "Appel Anthropic", type: "main", index: 0 }]] },
-        "Appel Anthropic": { main: [[{ node: "Parser Qualification", type: "main", index: 0 }]] },
+        "Build Prompt Qualification": { main: [[{ node: "Appel LLM", type: "main", index: 0 }]] },
+        "Appel LLM": { main: [[{ node: "Parser Qualification", type: "main", index: 0 }]] },
         "Parser Qualification": { main: [[{ node: "Maj Analyse Posts", type: "main", index: 0 }]] },
         "Agreger Mail": { main: [[{ node: "Gmail Rapport", type: "main", index: 0 }]] },
     };

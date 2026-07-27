@@ -481,23 +481,12 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://api.anthropic.com/v1/messages",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "anthropic-version",
-              "value": "2023-06-01"
-            }
-          ]
-        },
+        "url": "http://172.18.0.1:11434/api/chat",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 800, messages: [{ role: 'user', content: $json.prompt }] }) }}",
+        "jsonBody": "={{ JSON.stringify({ model: 'glm-5.2:cloud', messages: [{ role: 'user', content: $json.prompt }], stream: false, think: false, options: { num_predict: 800 } }) }}",
         "options": {
-          "timeout": 120000,
+          "timeout": 300000,
           "response": {
             "response": {
               "neverError": true
@@ -505,8 +494,8 @@
           }
         }
       },
-      "id": "9f7c1be1-34d9-43f2-a9f7-9f7c1be134d9",
-      "name": "Appel Anthropic",
+      "id": "e6ad7776-8563-4398-ae6a-e6ad77768563",
+      "name": "Appel LLM",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -517,7 +506,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const resultats = [];\n\n// Le nœud HTTP Request ne réémet pas les champs d'entrée : on réapparie la\n// réponse à sa publication par l'index. Le nœud émet un item par item d'entrée,\n// dans l'ordre, mais on vérifie quand même plutôt que de supposer.\nconst demandes = $('Build Prompt Qualification').all().map((i) => i.json);\nconst reponses = $input.all();\n\nif (reponses.length !== demandes.length) {\n  throw new Error(\n    'Appariement impossible : ' + reponses.length + ' réponse(s) pour ' +\n    demandes.length + ' demande(s). Aucune analyse écrite pour éviter de les attribuer au mauvais post.'\n  );\n}\n\nfor (let i = 0; i < reponses.length; i++) {\n  const j = reponses[i].json;\n  const pageId = demandes[i].pageId;\n\n  // onError: continueRegularOutput fait passer un échec HTTP comme un item normal.\n  if (!j || j.error) continue;\n\n  const brut = (j.content && j.content[0] && j.content[0].text) || '';\n  const nettoye = brut.replace(/```json/g, '').replace(/```/g, '').trim();\n\n  let data = null;\n  try {\n    data = JSON.parse(nettoye);\n  } catch (e) {\n    const debut = nettoye.indexOf('{');\n    const fin = nettoye.lastIndexOf('}');\n    if (debut !== -1 && fin !== -1) {\n      try { data = JSON.parse(nettoye.slice(debut, fin + 1)); } catch (e2) { data = null; }\n    }\n  }\n\n  if (!data) continue;\n\n  const angles = Array.isArray(data.angle) ? data.angle.slice(0, 4).join(', ') : String(data.angle || '');\n  const transposable = ['Oui', 'Non', 'À adapter'].includes(data.transposable) ? data.transposable : 'À adapter';\n\n  // Notion refuse tout objet rich_text au-delà de 2000 caractères.\n  const analyse = [\n    'Angle : ' + angles,\n    'Format : ' + (data.format || ''),\n    'Accroche : ' + (data.accroche || ''),\n    '',\n    data.pourquoi || ''\n  ].join('\\n').slice(0, 1900);\n\n  resultats.push({ json: { pageId, analyse, transposable } });\n}\n\nreturn resultats;"
+        "jsCode": "const resultats = [];\n\n// Le nœud HTTP Request ne réémet pas les champs d'entrée : on réapparie la\n// réponse à sa publication par l'index. Le nœud émet un item par item d'entrée,\n// dans l'ordre, mais on vérifie quand même plutôt que de supposer.\nconst demandes = $('Build Prompt Qualification').all().map((i) => i.json);\nconst reponses = $input.all();\n\nif (reponses.length !== demandes.length) {\n  throw new Error(\n    'Appariement impossible : ' + reponses.length + ' réponse(s) pour ' +\n    demandes.length + ' demande(s). Aucune analyse écrite pour éviter de les attribuer au mauvais post.'\n  );\n}\n\nfor (let i = 0; i < reponses.length; i++) {\n  const j = reponses[i].json;\n  const pageId = demandes[i].pageId;\n\n  // onError: continueRegularOutput fait passer un échec HTTP comme un item normal.\n  if (!j || j.error) continue;\n\n  // Réponse Ollama : { message: { content } }. Un content vide sur un modèle de\n  // raisonnement signale un think non désactivé.\n  const brut = (j.message && j.message.content) || '';\n  const nettoye = brut.replace(/```json/g, '').replace(/```/g, '').trim();\n\n  let data = null;\n  try {\n    data = JSON.parse(nettoye);\n  } catch (e) {\n    const debut = nettoye.indexOf('{');\n    const fin = nettoye.lastIndexOf('}');\n    if (debut !== -1 && fin !== -1) {\n      try { data = JSON.parse(nettoye.slice(debut, fin + 1)); } catch (e2) { data = null; }\n    }\n  }\n\n  if (!data) continue;\n\n  const angles = Array.isArray(data.angle) ? data.angle.slice(0, 4).join(', ') : String(data.angle || '');\n  const transposable = ['Oui', 'Non', 'À adapter'].includes(data.transposable) ? data.transposable : 'À adapter';\n\n  // Notion refuse tout objet rich_text au-delà de 2000 caractères.\n  const analyse = [\n    'Angle : ' + angles,\n    'Format : ' + (data.format || ''),\n    'Accroche : ' + (data.accroche || ''),\n    '',\n    data.pourquoi || ''\n  ].join('\\n').slice(0, 1900);\n\n  resultats.push({ json: { pageId, analyse, transposable } });\n}\n\nreturn resultats;"
       },
       "id": "574a42be-a7ec-4b8d-a574-574a42bea7ec",
       "name": "Parser Qualification",
@@ -789,14 +778,14 @@
       "main": [
         [
           {
-            "node": "Appel Anthropic",
+            "node": "Appel LLM",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Appel Anthropic": {
+    "Appel LLM": {
       "main": [
         [
           {

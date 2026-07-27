@@ -62,7 +62,7 @@ test("chaque nœud Code du workflow compile comme un nœud Code N8N", () => {
     }
 });
 
-test("l'appel Anthropic passe par un credential, jamais par un nœud Code", () => {
+test("l'appel LLM vise l'Ollama interne et n'exige aucun secret", () => {
     const workflow = JSON.parse(readFileSync(CHEMIN_WORKFLOW, "utf8"));
 
     // Un nœud Code N8N ne peut ni lire $env ni utiliser
@@ -70,22 +70,38 @@ test("l'appel Anthropic passe par un credential, jamais par un nœud Code", () =
     // imposerait d'écrire la clé en dur, et un export de workflow est versionné.
     for (const noeud of workflow.nodes.filter((n) => n.type === "n8n-nodes-base.code")) {
         assert.equal(
-            /api\.anthropic\.com/.test(noeud.parameters.jsCode),
+            /api\.anthropic\.com|api\.openai\.com/.test(noeud.parameters.jsCode),
             false,
-            `le nœud Code "${noeud.name}" appelle Anthropic : cet appel doit passer par un nœud HTTP Request avec credential`
+            `le nœud Code "${noeud.name}" appelle une API LLM externe : cet appel doit passer par un nœud HTTP Request`
         );
     }
 
-    const appel = workflow.nodes.find((n) => n.name === "Appel Anthropic");
-    assert.ok(appel, "nœud Appel Anthropic absent");
+    const appel = workflow.nodes.find((n) => n.name === "Appel LLM");
+    assert.ok(appel, "nœud Appel LLM absent");
     assert.equal(appel.type, "n8n-nodes-base.httpRequest");
-    assert.equal(appel.parameters.authentication, "genericCredentialType");
-    assert.equal(appel.parameters.genericAuthType, "httpHeaderAuth");
+    // Réseau Docker interne : ni credential, ni en-tête d'authentification.
+    assert.match(appel.parameters.url, /^http:\/\/172\.18\.0\.1:11434\//);
+    assert.equal(appel.parameters.authentication, undefined);
+    assert.equal(appel.parameters.sendHeaders, undefined);
 });
 
-test("aucun nœud ne contient de clé d'API en clair ni d'emplacement à remplir à la main", () => {
+test("l'appel LLM désactive le thinking", () => {
+    const workflow = JSON.parse(readFileSync(CHEMIN_WORKFLOW, "utf8"));
+    const appel = workflow.nodes.find((n) => n.name === "Appel LLM");
+    // Sur un modèle de raisonnement, sans think: false le budget num_predict
+    // part entièrement dans le raisonnement et message.content revient vide.
+    assert.match(appel.parameters.jsonBody, /think:\s*false/);
+});
+
+test("le parseur lit la réponse au format Ollama", () => {
+    const workflow = JSON.parse(readFileSync(CHEMIN_WORKFLOW, "utf8"));
+    const parseur = workflow.nodes.find((n) => n.name === "Parser Qualification");
+    assert.match(parseur.parameters.jsCode, /j\.message && j\.message\.content/);
+});
+
+test("aucun secret ni emplacement à remplir à la main dans le workflow", () => {
     const brut = readFileSync(CHEMIN_WORKFLOW, "utf8");
-    for (const motif of [/sk-ant-/, /A_RENSEIGNER/, /x-api-key["\s:]+sk-/i]) {
+    for (const motif of [/sk-ant-/, /A_RENSEIGNER/, /x-api-key/i, /apify_api_/]) {
         assert.equal(motif.test(brut), false, `motif interdit détecté : ${motif}`);
     }
 });
