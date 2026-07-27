@@ -147,7 +147,7 @@ export default function ConcurrentsPage() {
     if (loading) {
         return (
             <>
-                <Banner screen="veille" />
+                <Banner screen="concurrents" />
                 <div className="page">
                     <div className="flex items-center justify-center py-24">
                         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-mauve mx-auto" />
@@ -160,7 +160,7 @@ export default function ConcurrentsPage() {
     if (error) {
         return (
             <>
-                <Banner screen="veille" />
+                <Banner screen="concurrents" />
                 <div className="page">
                     <p style={{ color: "var(--rose)" }}>Erreur : {error}</p>
                 </div>
@@ -170,7 +170,7 @@ export default function ConcurrentsPage() {
 
     return (
         <>
-            <Banner screen="veille" />
+            <Banner screen="concurrents" />
             <div className="page">
                 <div className="page-header">
                     <div>

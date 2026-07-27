@@ -21,6 +21,12 @@ const SCREEN_META: Record<string, { eyebrow: string; pre: string; em: string; su
     em: "concurrence",
     sub: "Inspirations, signaux faibles et recommandations à actionner cette semaine.",
   },
+  concurrents: {
+    eyebrow: "Signaux mesurés",
+    pre: "Veille ",
+    em: "performance",
+    sub: "Ce qui a réellement surperformé ailleurs — chiffres à l'appui, jamais au jugé.",
+  },
   backlog: {
     eyebrow: "Atelier créatif",
     pre: "Backlog ",
