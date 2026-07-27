@@ -99,6 +99,26 @@ test("le parseur lit la réponse au format Ollama", () => {
     assert.match(parseur.parameters.jsCode, /j\.message && j\.message\.content/);
 });
 
+test("le webhook est authentifié et répond immédiatement", () => {
+    const workflow = JSON.parse(readFileSync(CHEMIN_WORKFLOW, "utf8"));
+    const webhook = workflow.nodes.find((n) => n.type === "n8n-nodes-base.webhook");
+    assert.ok(webhook, "nœud Webhook absent");
+
+    // Un webhook ouvert laisse n'importe qui brûler les crédits Apify et le
+    // quota Ollama, et écrire dans Notion. L'authentification passe par un
+    // credential, jamais par un token en dur dans un nœud Code.
+    assert.equal(webhook.parameters.authentication, "headerAuth");
+
+    // La collecte dure 90 à 130 s : tenir la connexion ouverte dépasserait le
+    // délai d'une fonction serverless Vercel côté dashboard.
+    assert.equal(webhook.parameters.responseMode, "immediately");
+    assert.equal(
+        workflow.nodes.some((n) => n.type === "n8n-nodes-base.respondToWebhook"),
+        false,
+        "respondToWebhook est inutile avec responseMode immediately"
+    );
+});
+
 test("aucun secret ni emplacement à remplir à la main dans le workflow", () => {
     const brut = readFileSync(CHEMIN_WORKFLOW, "utf8");
     for (const motif of [/sk-ant-/, /A_RENSEIGNER/, /x-api-key/i, /apify_api_/]) {

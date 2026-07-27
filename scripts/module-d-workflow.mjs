@@ -474,7 +474,15 @@ export function genererWorkflow(lib) {
             parameters: {
                 httpMethod: "POST",
                 path: "anna-veille-performance",
-                responseMode: "responseNode",
+                // Un webhook ouvert laisse n'importe qui brûler les crédits Apify,
+                // le quota Ollama cloud et écrire dans Notion. L'authentification
+                // est portée par un credential Header Auth, pas par un token en
+                // dur dans un nœud Code — sinon le secret revient dans l'export.
+                authentication: "headerAuth",
+                // La collecte dure 90 à 130 s : bien au-delà du délai d'une
+                // fonction serverless Vercel. On accuse réception immédiatement
+                // et le dashboard relit Notion ensuite.
+                responseMode: "immediately",
                 options: {},
             },
             id: idStable("Webhook Manuel"),
@@ -610,20 +618,6 @@ export function genererWorkflow(lib) {
             typeVersion: 2,
             position: [1980, 300],
         },
-        {
-            parameters: {
-                respondWith: "json",
-                responseBody:
-                    "={{ JSON.stringify({ total: $json.total, creations: $json.nbCreations, majs: $json.nbMajs, surperformants: $json.nbSurperformants, erreurs: $json.erreurs }) }}",
-                options: {},
-            },
-            id: idStable("Reponse Webhook"),
-            name: "Reponse Webhook",
-            type: "n8n-nodes-base.respondToWebhook",
-            typeVersion: 1,
-            position: [1760, 500],
-        },
-
         // ----- Qualification LLM + rapport -----
         // Branchées après "Maj Comptes", seul nœud d'écriture garanti de tourner
         // (un item par compte actif). Les créations sont donc déjà écrites, et
@@ -717,12 +711,13 @@ export function genererWorkflow(lib) {
         "Apify TikTok": { main: [[{ node: "Normaliser", type: "main", index: 0 }]] },
         Normaliser: { main: [[{ node: "Lire Posts Existants", type: "main", index: 0 }]] },
         "Lire Posts Existants": { main: [[{ node: "Scorer", type: "main", index: 0 }]] },
+        // Ordre significatif : les créations d'abord, pour que la qualification
+        // branchée après "Maj Comptes" voie des publications déjà écrites.
         Scorer: {
             main: [[
                 { node: "Filtrer Creations", type: "main", index: 0 },
                 { node: "Filtrer Majs", type: "main", index: 0 },
                 { node: "Filtrer Comptes", type: "main", index: 0 },
-                { node: "Reponse Webhook", type: "main", index: 0 },
             ]],
         },
         "Filtrer Creations": { main: [[{ node: "Creer Posts", type: "main", index: 0 }]] },
