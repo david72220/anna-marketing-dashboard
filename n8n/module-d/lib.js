@@ -81,6 +81,9 @@ function normaliser(plateforme, items) {
 const TAILLE_BASELINE = 30;
 const ECHANTILLON_MINIMUM = 10;
 const SEUIL_SURPERFORMANCE = 1.5;
+// Six mois : au-delà, "d'habitude" pour ce compte n'a plus de sens (ex. compte
+// dont l'audience s'est effondrée depuis un pic viral ancien).
+const FENETRE_BASELINE_JOURS = 183;
 
 // Notion peut renvoyer la métrique avec une casse quelconque ; toute valeur
 // inconnue retombe sur les vues, qui est le cas majoritaire.
@@ -107,6 +110,12 @@ function moyenneReference(post, historique) {
     if (!post || typeof post !== "object") return vide;
 
     const metrique = metriqueNormalisee(post);
+    // Ancré sur la publication évaluée (pas Date.now()) : la fonction reste
+    // pure et compare une publication au contexte du compte à ce moment-là.
+    // Si la publication évaluée n'a pas de date exploitable, on ne peut pas
+    // ancrer la fenêtre : aucun filtre d'âge n'est appliqué.
+    const instantEvalue = instant(post);
+    const bornInf = instantEvalue === null ? null : instantEvalue - FENETRE_BASELINE_JOURS * 24 * 60 * 60 * 1000;
     const vus = new Set();
     const pertinents = [];
 
@@ -119,6 +128,7 @@ function moyenneReference(post, historique) {
 
         const t = instant(h);
         if (t === null) continue;
+        if (bornInf !== null && t < bornInf) continue;
 
         const valeur = valeurMetrique(h);
         if (valeur === null) continue;

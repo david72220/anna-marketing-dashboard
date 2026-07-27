@@ -2,6 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { moyenneReference, calculerScore, repartir, SEUIL_SURPERFORMANCE } from "./score.mjs";
 
+const JOUR_MS = 24 * 60 * 60 * 1000;
+
 function post(id, options = {}) {
     return {
         postId: id,
@@ -370,4 +372,85 @@ test("repartir : l'ordre du lot est préservé dans creations", () => {
     const c = post("c");
     const r = repartir([c, a, b], {});
     assert.deepEqual(r.creations, [c, a, b]);
+});
+
+// ===== Fenêtre de 6 mois ancrée sur la publication évaluée =====
+
+test("une entrée publiée plus de 6 mois avant la publication évaluée est exclue", () => {
+    const evalue = post("z", { date: "2026-07-01T00:00:00.000Z" });
+    const historique = [
+        post("ancien", { vues: 500, date: new Date(Date.parse(evalue.datePublication) - 210 * JOUR_MS).toISOString() }),
+    ];
+    const r = moyenneReference(evalue, historique);
+    assert.equal(r.echantillon, 0);
+    assert.equal(r.moyenne, 0);
+});
+
+test("une entrée publiée 5 mois avant la publication évaluée est retenue", () => {
+    const evalue = post("z", { date: "2026-07-01T00:00:00.000Z" });
+    const historique = [
+        post("recent", { vues: 500, date: new Date(Date.parse(evalue.datePublication) - 150 * JOUR_MS).toISOString() }),
+    ];
+    const r = moyenneReference(evalue, historique);
+    assert.equal(r.echantillon, 1);
+    assert.equal(r.moyenne, 500);
+});
+
+test("une entrée publiée après la publication évaluée est retenue", () => {
+    const evalue = post("z", { date: "2026-07-01T00:00:00.000Z" });
+    const historique = [
+        post("futur", { vues: 500, date: new Date(Date.parse(evalue.datePublication) + 30 * JOUR_MS).toISOString() }),
+    ];
+    const r = moyenneReference(evalue, historique);
+    assert.equal(r.echantillon, 1);
+    assert.equal(r.moyenne, 500);
+});
+
+test("sans date exploitable sur la publication évaluée, aucun filtre d'âge ne s'applique", () => {
+    const evalueSansDate = {
+        postId: "z",
+        handle: "concurrent1",
+        plateforme: "Instagram",
+        metriqueScore: "Vues",
+        vues: 1000,
+        likes: 100,
+        datePublication: null,
+    };
+    const historique = [post("tresancien", { vues: 500, date: "2010-01-01T00:00:00.000Z" })];
+    const r = moyenneReference(evalueSansDate, historique);
+    assert.equal(r.echantillon, 1);
+    assert.equal(r.moyenne, 500);
+});
+
+test("un viral historique n'écrase plus les scores récents d'un compte en déclin", () => {
+    const handle = "compte-en-declin";
+    const plateforme = "TikTok";
+    const historique = [
+        post("viral-2024", { handle, plateforme, vues: 2400000, date: "2024-09-20T00:00:00.000Z" }),
+        post("viral-2023a", { handle, plateforme, vues: 326200, date: "2023-02-18T00:00:00.000Z" }),
+        post("viral-2023b", { handle, plateforme, vues: 133000, date: "2023-03-19T00:00:00.000Z" }),
+    ];
+    const joursJanvier = [5, 10, 15, 20, 25, 30];
+    const joursFevrier = [2, 5, 8, 11, 14, 17];
+    for (const j of joursJanvier) {
+        historique.push(
+            post(`recent-jan-${j}`, { handle, plateforme, vues: 1000, date: new Date(Date.UTC(2026, 0, j)).toISOString() })
+        );
+    }
+    for (const j of joursFevrier) {
+        historique.push(
+            post(`recent-fev-${j}`, { handle, plateforme, vues: 1000, date: new Date(Date.UTC(2026, 1, j)).toISOString() })
+        );
+    }
+
+    const evalue = post("post-eval", { handle, plateforme, vues: 3000, date: "2026-02-24T00:00:00.000Z" });
+
+    const ref = moyenneReference(evalue, historique);
+    assert.equal(ref.echantillon, 12);
+    assert.equal(ref.moyenne, 1000);
+
+    const r = calculerScore(evalue, historique);
+    assert.equal(r.fiable, true);
+    assert.equal(r.score, 3);
+    assert.equal(r.surperforme, true);
 });
