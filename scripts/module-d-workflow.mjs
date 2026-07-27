@@ -51,21 +51,34 @@ const GLUE_NORMALISER = `
 // ---- glue N8N ----
 const prep = $('Preparer Handles').first().json;
 
-let brutIg = [];
-let brutTt = [];
 const erreurs = [];
 
-try {
-  brutIg = $('Apify Instagram').all().map((i) => i.json);
-} catch (e) {
-  erreurs.push('Instagram: ' + e.message);
+// Avec onError: continueRegularOutput, un appel Apify qui échoue n'émet pas
+// d'exception : il émet un item { error: {...} } comme un résultat normal.
+// Sans cette détection, une panne de scraping remonte comme « 0 publication
+// collectée », c'est-à-dire un succès. C'est arrivé.
+function collecter(nomNoeud, plateforme) {
+  let items;
+  try {
+    items = $(nomNoeud).all().map((i) => i.json);
+  } catch (e) {
+    erreurs.push(plateforme + ' : ' + e.message);
+    return [];
+  }
+
+  const enErreur = items.filter((x) => x && x.error);
+  if (enErreur.length > 0) {
+    const detail = enErreur[0].error;
+    const message = (detail && detail.message) || JSON.stringify(detail);
+    erreurs.push(plateforme + ' : ' + String(message).slice(0, 200));
+    return [];
+  }
+
+  return items;
 }
 
-try {
-  brutTt = $('Apify TikTok').all().map((i) => i.json);
-} catch (e) {
-  erreurs.push('TikTok: ' + e.message);
-}
+const brutIg = collecter('Apify Instagram', 'Instagram');
+const brutTt = collecter('Apify TikTok', 'TikTok');
 
 const depuis = new Date(prep.depuis).getTime();
 
