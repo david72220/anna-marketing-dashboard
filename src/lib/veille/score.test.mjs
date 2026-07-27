@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { moyenneReference, calculerScore, SEUIL_SURPERFORMANCE } from "./score.mjs";
+import { moyenneReference, calculerScore, repartir, SEUIL_SURPERFORMANCE } from "./score.mjs";
 
 function post(id, options = {}) {
     return {
@@ -316,4 +316,58 @@ test("calculerScore sur un post undefined ou null ne lève pas d'exception", () 
     const r2 = calculerScore(null, []);
     assert.equal(r1.score, null);
     assert.equal(r2.score, null);
+});
+
+test("repartir : les publications inconnues vont en création, les connues en mise à jour", () => {
+    const a = post("a");
+    const b = post("b");
+    const c = post("c");
+    const r = repartir([a, b, c], { b: "page-b", c: "page-c" });
+
+    assert.deepEqual(r.creations, [a]);
+    assert.equal(r.majs.length, 2);
+    assert.equal(r.majs[0].pageId, "page-b");
+    assert.equal(r.majs[0].post, b);
+    assert.equal(r.majs[1].pageId, "page-c");
+});
+
+test("repartir : un lot vide ne produit rien", () => {
+    const r = repartir([], { b: "page-b" });
+    assert.deepEqual(r.creations, []);
+    assert.deepEqual(r.majs, []);
+});
+
+test("repartir : les doublons à l'intérieur d'un même lot sont écartés (création)", () => {
+    const a = post("a");
+    const r = repartir([a, { ...a }], {});
+    assert.equal(r.creations.length, 1);
+    assert.equal(r.majs.length, 0);
+});
+
+test("repartir : un doublon intra-lot d'une publication déjà connue ne produit qu'une seule mise à jour", () => {
+    const a = post("a");
+    const r = repartir([a, { ...a }], { a: "page-a" });
+    assert.equal(r.creations.length, 0);
+    assert.equal(r.majs.length, 1);
+    assert.equal(r.majs[0].pageId, "page-a");
+});
+
+test("repartir : les entrées null, non-objets, ou sans postId sont ignorées sans lever", () => {
+    const a = post("a");
+    const r = repartir([null, undefined, 42, "string", {}, { handle: "x" }, a], { b: "page-b" });
+    assert.deepEqual(r.creations, [a]);
+    assert.deepEqual(r.majs, []);
+});
+
+test("repartir : appelée avec undefined ou null ne lève pas d'exception", () => {
+    assert.deepEqual(repartir(undefined, undefined), { creations: [], majs: [] });
+    assert.deepEqual(repartir(null, null), { creations: [], majs: [] });
+});
+
+test("repartir : l'ordre du lot est préservé dans creations", () => {
+    const a = post("a");
+    const b = post("b");
+    const c = post("c");
+    const r = repartir([c, a, b], {});
+    assert.deepEqual(r.creations, [c, a, b]);
 });

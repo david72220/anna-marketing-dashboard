@@ -81,3 +81,23 @@ export function calculerScore(post, historique) {
         surperforme: fiable && score >= SEUIL_SURPERFORMANCE,
     };
 }
+
+export function repartir(collectes, pagesParPostId) {
+    const creations = [];
+    const majs = [];
+    const vus = new Set();
+    const pages = pagesParPostId && typeof pagesParPostId === "object" ? pagesParPostId : {};
+
+    for (const post of Array.isArray(collectes) ? collectes : []) {
+        if (!post || typeof post !== "object") continue;
+        if (!post.postId) continue;
+        if (vus.has(post.postId)) continue;
+        vus.add(post.postId);
+
+        const pageId = pages[post.postId];
+        if (pageId) majs.push({ post, pageId });
+        else creations.push(post);
+    }
+
+    return { creations, majs };
+}
