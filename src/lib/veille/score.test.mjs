@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { moyenneReference } from "./score.mjs";
+import { moyenneReference, calculerScore, SEUIL_SURPERFORMANCE } from "./score.mjs";
 
 function post(id, options = {}) {
     return {
@@ -221,4 +221,99 @@ test("un historique contenant des entrées mal formées ne fait pas échouer la 
     const r = moyenneReference(post("z"), historique);
     assert.equal(r.moyenne, 100);
     assert.equal(r.echantillon, 1);
+});
+
+test("le score est la métrique divisée par la moyenne de référence", () => {
+    const historique = [post("a", { vues: 1000 }), post("b", { vues: 1000 })];
+    const r = calculerScore(post("c", { vues: 3000 }), historique);
+    assert.equal(r.score, 3);
+});
+
+test("le score est arrondi à deux décimales", () => {
+    const historique = [post("a", { vues: 3000 })];
+    const r = calculerScore(post("b", { vues: 1000 }), historique);
+    assert.equal(r.score, 0.33);
+});
+
+test("un post viral ne s'écrase pas lui-même dans sa propre moyenne", () => {
+    const viral = post("viral", { vues: 50000, date: "2026-07-13T00:00:00.000Z" });
+    const historique = [];
+    for (let i = 0; i < 12; i++) {
+        historique.push(
+            post(`filler${i}`, { vues: 500, date: new Date(Date.UTC(2026, 6, 1 + i)).toISOString() })
+        );
+    }
+    historique.push(viral);
+
+    const r = calculerScore(viral, historique);
+    assert.equal(r.score, 100);
+    assert.equal(r.fiable, true);
+    assert.equal(r.surperforme, true);
+});
+
+test("une moyenne nulle ne produit pas de score", () => {
+    const r = calculerScore(post("z"), []);
+    assert.equal(r.score, null);
+    assert.equal(r.surperforme, false);
+    assert.equal(r.fiable, false);
+});
+
+test("un échantillon inférieur à 10 est marqué non fiable et ne surperforme jamais", () => {
+    const historique = [post("a", { vues: 10 }), post("b", { vues: 10 })];
+    const r = calculerScore(post("z", { vues: 10000 }), historique);
+    assert.equal(r.score, 1000);
+    assert.equal(r.fiable, false);
+    assert.equal(r.surperforme, false);
+});
+
+test("un échantillon suffisant au-dessus du seuil surperforme", () => {
+    const historique = [];
+    for (let i = 0; i < 12; i++) {
+        historique.push(post(`p${i}`, { vues: 1000, date: new Date(Date.UTC(2026, 6, 1 + i)).toISOString() }));
+    }
+    const r = calculerScore(post("z", { vues: 1000 * SEUIL_SURPERFORMANCE }), historique);
+    assert.equal(r.fiable, true);
+    assert.equal(r.surperforme, true);
+});
+
+test("un échantillon suffisant juste en dessous du seuil ne surperforme pas", () => {
+    const historique = [];
+    for (let i = 0; i < 12; i++) {
+        historique.push(post(`p${i}`, { vues: 1000, date: new Date(Date.UTC(2026, 6, 1 + i)).toISOString() }));
+    }
+    const r = calculerScore(post("z", { vues: 1494 }), historique);
+    assert.equal(r.surperforme, false);
+});
+
+test("un score exactement au seuil surperforme (comparaison sur le score arrondi)", () => {
+    const historique = [];
+    for (let i = 0; i < 12; i++) {
+        historique.push(post(`p${i}`, { vues: 1000, date: new Date(Date.UTC(2026, 6, 1 + i)).toISOString() }));
+    }
+    const r = calculerScore(post("z", { vues: 1500 }), historique);
+    assert.equal(r.score, 1.5);
+    assert.equal(r.surperforme, true);
+});
+
+test("un post dont la métrique vaut null donne un score null sans produire NaN", () => {
+    const sansValeur = {
+        postId: "noval",
+        handle: "concurrent1",
+        plateforme: "Instagram",
+        metriqueScore: "Vues",
+        vues: null,
+        likes: 0,
+        datePublication: "2026-07-05T00:00:00.000Z",
+    };
+    const historique = [post("a", { vues: 100 }), post("b", { vues: 120 })];
+    const r = calculerScore(sansValeur, historique);
+    assert.equal(r.score, null);
+    assert.equal(Number.isNaN(r.score), false);
+});
+
+test("calculerScore sur un post undefined ou null ne lève pas d'exception", () => {
+    const r1 = calculerScore(undefined, []);
+    const r2 = calculerScore(null, []);
+    assert.equal(r1.score, null);
+    assert.equal(r2.score, null);
 });

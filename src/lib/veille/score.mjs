@@ -61,3 +61,23 @@ export function moyenneReference(post, historique) {
         echantillon: retenus.length,
     };
 }
+
+export function calculerScore(post, historique) {
+    const { moyenne, echantillon } = moyenneReference(post, historique);
+    const fiable = echantillon >= ECHANTILLON_MINIMUM;
+    const valeur = valeurMetrique(post);
+
+    if (valeur === null || !(moyenne > 0)) {
+        return { score: null, moyenne, echantillon, fiable: false, surperforme: false };
+    }
+
+    const score = Math.round((valeur / moyenne) * 100) / 100;
+
+    return {
+        score,
+        moyenne,
+        echantillon,
+        fiable,
+        surperforme: fiable && score >= SEUIL_SURPERFORMANCE,
+    };
+}
