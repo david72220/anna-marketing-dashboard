@@ -143,9 +143,18 @@ const scores = collecte.posts.map((p) => ({ ...p, ...calculerScore(p, historique
 const reparti = repartir(scores, pagesParPostId);
 
 // Moyennes par fiche compte, calculées séparément par métrique.
+// On repart de TOUS les comptes actifs, pas seulement de ceux qui ont produit
+// des publications : un compte dormant doit voir sa date de collecte mise à
+// jour, sinon rien ne distingue « interrogé, rien de neuf » de « jamais
+// interrogé ». Un compte sans publication récente ressort avec nbBaseline à 0.
+const prep = $('Preparer Handles').first().json;
 const comptesVus = {};
-for (const p of scores) {
-  if (!comptesVus[p.pageCompte]) comptesVus[p.pageCompte] = { handle: p.handle, plateforme: p.plateforme };
+for (const cle of Object.keys(prep.fiches || {})) {
+  const separateur = cle.indexOf(':');
+  comptesVus[prep.fiches[cle]] = {
+    plateforme: cle.slice(0, separateur),
+    handle: cle.slice(separateur + 1)
+  };
 }
 
 const moyenne = (valeurs) => (valeurs.length ? Math.round(valeurs.reduce((a, b) => a + b, 0) / valeurs.length) : 0);
