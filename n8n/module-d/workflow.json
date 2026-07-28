@@ -29,7 +29,7 @@
         "httpMethod": "POST",
         "path": "anna-veille-performance",
         "authentication": "headerAuth",
-        "responseMode": "immediately",
+        "responseMode": "onReceived",
         "options": {}
       },
       "id": "b5fe1e70-d105-420f-ab5f-b5fe1e70d105",

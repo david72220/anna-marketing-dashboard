@@ -111,7 +111,14 @@ test("le webhook est authentifié et répond immédiatement", () => {
 
     // La collecte dure 90 à 130 s : tenir la connexion ouverte dépasserait le
     // délai d'une fonction serverless Vercel côté dashboard.
-    assert.equal(webhook.parameters.responseMode, "immediately");
+    // Seules onReceived | lastNode | responseNode sont valides : toute autre
+    // valeur est supprimée en silence par N8N à l'import, et la requête reste
+    // alors sans réponse jusqu'au timeout du client.
+    assert.ok(
+        ["onReceived", "lastNode", "responseNode"].includes(webhook.parameters.responseMode),
+        `responseMode invalide : ${webhook.parameters.responseMode}`
+    );
+    assert.equal(webhook.parameters.responseMode, "onReceived");
     assert.equal(
         workflow.nodes.some((n) => n.type === "n8n-nodes-base.respondToWebhook"),
         false,

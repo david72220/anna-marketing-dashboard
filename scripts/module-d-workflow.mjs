@@ -482,7 +482,10 @@ export function genererWorkflow(lib) {
                 // La collecte dure 90 à 130 s : bien au-delà du délai d'une
                 // fonction serverless Vercel. On accuse réception immédiatement
                 // et le dashboard relit Notion ensuite.
-                responseMode: "immediately",
+                // Valeurs valides : onReceived | lastNode | responseNode.
+                // "immediately" n'existe pas — N8N l'accepte à l'import puis le
+                // supprime silencieusement, laissant la requête sans réponse.
+                responseMode: "onReceived",
                 options: {},
             },
             id: idStable("Webhook Manuel"),
