@@ -470,30 +470,19 @@ export function genererWorkflow(lib) {
             typeVersion: 1.3,
             position: [0, 0],
         },
-        {
-            parameters: {
-                httpMethod: "POST",
-                path: "anna-veille-performance",
-                // Un webhook ouvert laisse n'importe qui brûler les crédits Apify,
-                // le quota Ollama cloud et écrire dans Notion. L'authentification
-                // est portée par un credential Header Auth, pas par un token en
-                // dur dans un nœud Code — sinon le secret revient dans l'export.
-                authentication: "headerAuth",
-                // La collecte dure 90 à 130 s : bien au-delà du délai d'une
-                // fonction serverless Vercel. On accuse réception immédiatement
-                // et le dashboard relit Notion ensuite.
-                // Valeurs valides : onReceived | lastNode | responseNode.
-                // "immediately" n'existe pas — N8N l'accepte à l'import puis le
-                // supprime silencieusement, laissant la requête sans réponse.
-                responseMode: "onReceived",
-                options: {},
-            },
-            id: idStable("Webhook Manuel"),
-            name: "Webhook Manuel",
-            type: "n8n-nodes-base.webhook",
-            typeVersion: 2,
-            position: [0, 200],
-        },
+        // PAS DE WEBHOOK — décision du 27/07/2026, à ne pas réintroduire sans
+        // preuve que le problème ci-dessous est résolu.
+        //
+        // Un nœud Webhook avec `authentication: "headerAuth"` et un credential
+        // Header Auth dûment rempli et assigné N'A PAS protégé l'endpoint sur
+        // N8N 2.23.3 : des appels sans jeton et avec un jeton invalide ont
+        // déclenché l'exécution (vérifié trois fois, avant et après un cycle
+        // Inactive/Active, credential confirmé non vide). Un webhook ouvert
+        // laisse n'importe qui brûler les crédits Apify, le quota Ollama et
+        // écrire dans Notion — et l'URL n'est pas secrète.
+        //
+        // Le déclenchement se fait donc par le cron hebdomadaire, ou à la main
+        // depuis l'interface N8N. Le bouton du dashboard a été retiré.
         {
             parameters: {
                 resource: "databasePage",
@@ -704,7 +693,6 @@ export function genererWorkflow(lib) {
 
     const connexions = {
         "Schedule Lundi 8h": { main: [[{ node: "Lire Comptes Actifs", type: "main", index: 0 }]] },
-        "Webhook Manuel": { main: [[{ node: "Lire Comptes Actifs", type: "main", index: 0 }]] },
         "Lire Comptes Actifs": { main: [[{ node: "Preparer Handles", type: "main", index: 0 }]] },
         // Les deux appels Apify sont chaînés plutôt que parallèles : un nœud Code
         // à deux entrées sur le même index a un comportement de fusion peu lisible.

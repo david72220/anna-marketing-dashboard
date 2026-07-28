@@ -99,31 +99,29 @@ test("le parseur lit la réponse au format Ollama", () => {
     assert.match(parseur.parameters.jsCode, /j\.message && j\.message\.content/);
 });
 
-test("le webhook est authentifié et répond immédiatement", () => {
+test("le workflow n'expose aucun webhook", () => {
     const workflow = JSON.parse(readFileSync(CHEMIN_WORKFLOW, "utf8"));
-    const webhook = workflow.nodes.find((n) => n.type === "n8n-nodes-base.webhook");
-    assert.ok(webhook, "nœud Webhook absent");
 
-    // Un webhook ouvert laisse n'importe qui brûler les crédits Apify et le
-    // quota Ollama, et écrire dans Notion. L'authentification passe par un
-    // credential, jamais par un token en dur dans un nœud Code.
-    assert.equal(webhook.parameters.authentication, "headerAuth");
-
-    // La collecte dure 90 à 130 s : tenir la connexion ouverte dépasserait le
-    // délai d'une fonction serverless Vercel côté dashboard.
-    // Seules onReceived | lastNode | responseNode sont valides : toute autre
-    // valeur est supprimée en silence par N8N à l'import, et la requête reste
-    // alors sans réponse jusqu'au timeout du client.
-    assert.ok(
-        ["onReceived", "lastNode", "responseNode"].includes(webhook.parameters.responseMode),
-        `responseMode invalide : ${webhook.parameters.responseMode}`
+    // Décision du 27/07/2026. Sur N8N 2.23.3, `authentication: "headerAuth"`
+    // avec un credential rempli et assigné n'a PAS protégé l'endpoint : des
+    // appels sans jeton et avec un jeton invalide ont déclenché l'exécution,
+    // vérifié trois fois, avant et après un cycle Inactive/Active.
+    // Un webhook ouvert laisse consommer les crédits Apify et le quota Ollama.
+    // Déclenchement par cron, ou à la main depuis l'interface N8N.
+    assert.equal(
+        workflow.nodes.some((n) => n.type === "n8n-nodes-base.webhook"),
+        false,
+        "un nœud Webhook a été réintroduit : N8N ne sait pas le protéger, voir le commentaire dans module-d-workflow.mjs"
     );
-    assert.equal(webhook.parameters.responseMode, "onReceived");
     assert.equal(
         workflow.nodes.some((n) => n.type === "n8n-nodes-base.respondToWebhook"),
         false,
-        "respondToWebhook est inutile avec responseMode immediately"
+        "respondToWebhook sans webhook n'a pas de sens"
     );
+
+    // Le déclencheur planifié reste le seul point d'entrée automatique.
+    const cron = workflow.nodes.find((n) => n.type === "n8n-nodes-base.scheduleTrigger");
+    assert.ok(cron, "le déclencheur planifié est le seul point d'entrée restant");
 });
 
 test("aucun secret ni emplacement à remplir à la main dans le workflow", () => {

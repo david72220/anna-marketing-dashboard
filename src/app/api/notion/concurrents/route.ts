@@ -3,8 +3,6 @@ import { queryDatabaseAll, getPageTitle, getPropertyText } from "@/lib/notion";
 
 const POSTS_DB = process.env.NOTION_CONCURRENTS_POSTS_DB_ID!;
 const COMPTES_DB = process.env.NOTION_CONCURRENTS_COMPTES_DB_ID!;
-const N8N_WEBHOOK = process.env.N8N_WEBHOOK_CONCURRENTS;
-const N8N_TOKEN = process.env.N8N_WEBHOOK_CONCURRENTS_TOKEN;
 
 interface PostConcurrent {
     id: string;
@@ -104,40 +102,10 @@ export async function GET() {
     }
 }
 
-export async function POST() {
-    if (!N8N_WEBHOOK) {
-        return NextResponse.json({ error: "Webhook non configuré" }, { status: 500 });
-    }
-    if (!N8N_TOKEN) {
-        // Sans jeton, N8N répondra 403 : autant le dire ici plutôt que de
-        // laisser croire à une panne du workflow.
-        return NextResponse.json({ error: "Jeton du webhook non configuré" }, { status: 500 });
-    }
-    try {
-        // Le webhook Module D est protégé par un credential Header Auth côté
-        // N8N : sans cet en-tête, n'importe qui pourrait déclencher la collecte
-        // et consommer les crédits Apify et le quota Ollama.
-        const res = await fetch(N8N_WEBHOOK, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "X-Webhook-Token": N8N_TOKEN,
-            },
-            body: JSON.stringify({ source: "dashboard" }),
-        });
-
-        // Le workflow répond immédiatement puis poursuit en arrière-plan :
-        // la collecte dure 90 à 130 s, bien au-delà du délai d'une fonction
-        // serverless. Les résultats apparaîtront au prochain rafraîchissement.
-        return NextResponse.json({
-            success: res.ok,
-            status: res.status,
-            message: res.ok
-                ? "Collecte lancée. Les résultats apparaîtront dans quelques minutes."
-                : "N8N a refusé le déclenchement.",
-        });
-    } catch (error) {
-        console.error("Erreur déclenchement Module D:", error);
-        return NextResponse.json({ error: "Erreur lors du déclenchement" }, { status: 500 });
-    }
-}
+// Pas de POST : le déclenchement depuis l'application a été retiré le
+// 27/07/2026. Le webhook N8N correspondant s'exécutait malgré un jeton
+// d'authentification invalide (vérifié trois fois, avant et après un cycle
+// Inactive/Active du workflow, credential confirmé rempli). Un endpoint ouvert
+// laissait consommer les crédits Apify et le quota Ollama, et écrire dans
+// Notion. La collecte tourne désormais par cron hebdomadaire uniquement, ou à
+// la main depuis l'interface N8N.

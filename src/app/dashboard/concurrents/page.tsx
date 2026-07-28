@@ -3,12 +3,11 @@
 import { Fragment, useEffect, useState } from "react";
 import Banner from "@/components/Banner";
 import FilterChips from "@/components/FilterChips";
-import LaunchButton from "@/components/LaunchButton";
 import NetworkBadge from "@/components/NetworkBadge";
 import Counter from "@/components/Counter";
 import ScoreBadge from "@/components/ScoreBadge";
 import { formatDate } from "@/lib/notion";
-import { RefreshCw, Users, FileText, TrendingUp, Flame, ChevronDown, Sparkles, Recycle, Check } from "lucide-react";
+import { RefreshCw, Users, FileText, TrendingUp, Flame, ChevronDown, Recycle, Check } from "lucide-react";
 
 const SURPERFORMANCE_THRESHOLD = 1.5;
 
@@ -72,8 +71,6 @@ export default function ConcurrentsPage() {
     const [data, setData] = useState<ConcurrentsData>({ posts: [], comptes: [] });
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [launching, setLaunching] = useState(false);
-    const [launchMessage, setLaunchMessage] = useState("");
     const [platformFilter, setPlatformFilter] = useState("all");
     const [onlyOverperforming, setOnlyOverperforming] = useState(false);
     const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -100,25 +97,6 @@ export default function ConcurrentsPage() {
 
     useEffect(() => { loadData(); }, []);
 
-    const handleLaunch = async () => {
-        setLaunching(true);
-        setLaunchMessage("");
-        try {
-            const r = await fetch("/api/notion/concurrents", { method: "POST" });
-            const json = await r.json();
-            if (json.error) throw new Error(json.error);
-            setLaunchMessage(
-                json.success
-                    ? "Collecte lancée via N8N — les nouvelles publications arrivent généralement en quelques minutes."
-                    : `Le déclenchement a répondu avec le statut ${json.status}.`
-            );
-            setTimeout(() => loadData(), 5000);
-        } catch (e: any) {
-            setError(e.message || "Erreur lors du déclenchement de la collecte");
-        } finally {
-            setLaunching(false);
-        }
-    };
 
     const handleRecycle = async (postId: string) => {
         setRecycleState((prev) => ({ ...prev, [postId]: "loading" }));
@@ -212,17 +190,15 @@ export default function ConcurrentsPage() {
                         <button className="btn btn-ghost" onClick={() => loadData()}>
                             <RefreshCw size={12} /> Actualiser
                         </button>
-                        <LaunchButton loading={launching} onClick={handleLaunch}>
-                            <Sparkles size={16} /> Lancer la collecte
-                        </LaunchButton>
                     </div>
                 </div>
 
-                {launchMessage && (
-                    <p style={{ fontSize: "var(--size-meta)", color: "var(--mauve)", marginBottom: "var(--space-4)" }}>
-                        {launchMessage}
-                    </p>
-                )}
+                {/* Le déclenchement depuis l'application a été retiré : le webhook N8N
+                    s'exécutait malgré un jeton invalide. Collecte par cron hebdomadaire. */}
+                <p style={{ fontSize: "var(--size-meta)", color: "var(--fg-muted)", marginBottom: "var(--space-4)" }}>
+                    Collecte automatique chaque lundi à 8h. Pour un lancement immédiat, exécuter le workflow
+                    « Module D » depuis N8N.
+                </p>
 
                 {/* KPI grid */}
                 <div className="kpi-grid">

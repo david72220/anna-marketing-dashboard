@@ -26,23 +26,6 @@
     },
     {
       "parameters": {
-        "httpMethod": "POST",
-        "path": "anna-veille-performance",
-        "authentication": "headerAuth",
-        "responseMode": "onReceived",
-        "options": {}
-      },
-      "id": "b5fe1e70-d105-420f-ab5f-b5fe1e70d105",
-      "name": "Webhook Manuel",
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2,
-      "position": [
-        0,
-        200
-      ]
-    },
-    {
-      "parameters": {
         "resource": "databasePage",
         "operation": "getAll",
         "databaseId": {
@@ -576,17 +559,6 @@
   ],
   "connections": {
     "Schedule Lundi 8h": {
-      "main": [
-        [
-          {
-            "node": "Lire Comptes Actifs",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Webhook Manuel": {
       "main": [
         [
           {
