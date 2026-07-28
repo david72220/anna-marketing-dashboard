@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { queryDatabase, getPageTitle, getPropertyText } from "@/lib/notion";
+import { enTetesWebhookN8N } from "@/lib/n8n";
 
 const DB_ID = process.env.NOTION_ANALYSES_DB_ID!;
 const N8N_WEBHOOK = process.env.N8N_WEBHOOK_ANALYSES;
@@ -64,7 +65,7 @@ export async function POST(request: Request) {
         // Appeler le webhook N8N pour déclencher l'analyse
         const n8nRes = await fetch(N8N_WEBHOOK, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: enTetesWebhookN8N(),
             body: JSON.stringify({
                 networks,
                 keywords: kwList,

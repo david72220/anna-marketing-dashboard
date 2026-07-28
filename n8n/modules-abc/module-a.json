@@ -1,0 +1,633 @@
+{
+  "name": "🔍 Anna — Module A — Analyse Contenu V3",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "anna-analyse-contenu",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "f41c77e5-5a99-41f9-8d8a-f3f5033ef9f9",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -288,
+        1360
+      ],
+      "webhookId": "885e2293-23d5-449c-a003-8e3b3a2dea8c"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body;\nconst platforms = body.platforms || ['youtube'];\n\nreturn platforms.map(function(platform) {\n  return {\n    json: {\n      platform: platform.toLowerCase(),\n      youtubeApiKey: body.youtubeApiKey || '',\n      youtubeChannelId: body.youtubeChannelId || 'UCEbgisMMr3fbM-YV_agJRdA',\n      facebookToken: body.facebookToken || '',\n      facebookPageId: body.facebookPageId || ''\n    }\n  };\n});"
+      },
+      "id": "ff50b349-3f4b-4e2c-b6bf-a16e2a2560f4",
+      "name": "Préparer Plateformes",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -80,
+        1360
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "yt-rule-001",
+                    "leftValue": "={{ $json.platform }}",
+                    "rightValue": "youtube",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "ig-rule-001",
+                    "leftValue": "={{ $json.platform }}",
+                    "rightValue": "instagram",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "tt-rule-001",
+                    "leftValue": "={{ $json.platform }}",
+                    "rightValue": "tiktok",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "fb-rule-001",
+                    "leftValue": "={{ $json.platform }}",
+                    "rightValue": "facebook",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "1f6eecdb-a6b0-4023-8242-87fad12cfe68",
+      "name": "Switch",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        160,
+        1360
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://www.googleapis.com/youtube/v3/search?key={{ $json.youtubeApiKey }}&channelId={{ $json.youtubeChannelId }}&part=snippet&order=date&maxResults=5&type=video",
+        "options": {}
+      },
+      "id": "7c5f78fd-acc6-4a5b-80bd-5874dc6f2d32",
+      "name": "Fetch YouTube 5 Vidéos",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        368,
+        1088
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $json.items || [];\nconst videos = items.slice(0, 5);\n\nif (!videos.length) {\n  return [{ json: { platform: 'YouTube', title: 'Aucune video trouvee', description: '', content_text: '', postUrl: '', views: null, likes: null, comments: null } }];\n}\n\nreturn videos.map(function(video) {\n  const snippet = video.snippet || {};\n  const videoId = video.id && video.id.videoId ? video.id.videoId : '';\n  return {\n    json: {\n      platform: 'YouTube',\n      title: snippet.title || '',\n      description: snippet.description || '',\n      content_text: snippet.description || '',\n      postUrl: 'https://youtube.com/watch?v=' + videoId,\n      publishedAt: snippet.publishedAt ? snippet.publishedAt.split('T')[0] : '',\n      views: null,\n      likes: null,\n      comments: null\n    }\n  };\n});"
+      },
+      "id": "e3c7f8dc-6d88-4072-abbc-453797cb0a57",
+      "name": "Extraire YouTube",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        592,
+        1088
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $json;\nlet posts = [];\n\nif (Array.isArray(response)) {\n  posts = response;\n} else if (response.items) {\n  posts = response.items;\n}\n\nposts = posts.slice(0, 5);\n\nif (!posts.length) {\n  return [{\n    json: {\n      platform: 'Instagram',\n      title: 'Instagram - Aucun post dans le dataset Apify',\n      description: '',\n      content_text: 'Relancer l acteur Apify Instagram pour rafraichir les donnees.',\n      postUrl: '',\n      views: null, likes: null, comments: null\n    }\n  }];\n}\n\nreturn posts.map(function(post) {\n  const date = post.timestamp\n    ? post.timestamp.split('T')[0]\n    : new Date().toISOString().split('T')[0];\n\n  const caption = post.caption || post.text || '';\n  const title = caption.substring(0, 80) || ('Post Instagram - ' + date);\n\n  return {\n    json: {\n      platform: 'Instagram',\n      title: title,\n      description: caption,\n      content_text: caption,\n      postUrl: post.url || post.postUrl || ('https://instagram.com/p/' + (post.shortCode || '')),\n      views: post.videoViewCount || post.videoPlayCount || null,\n      likes: post.likesCount || null,\n      comments: post.commentsCount || null\n    }\n  };\n});"
+      },
+      "id": "13b34176-1084-4d59-a3a4-ecb741a1888b",
+      "name": "Extraire Instagram",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        592,
+        1280
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.apify.com/v2/datasets/RrX76uuicGzSqYXvX/items?limit=5&desc=true",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "a425dd2e-abb8-476e-b02a-57ba70f94b7c",
+      "name": "Fetch TikTok Apify",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        368,
+        1456
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "NSNjdOZZewLIKwgY",
+          "name": "APIFY Anna"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Apify retourne un tableau direct ou { items: [...] }\nlet response = $json;\nlet videos = [];\n\nif (Array.isArray(response)) {\n  videos = response;\n} else if (response.items && Array.isArray(response.items)) {\n  videos = response.items;\n} else if (response.data && Array.isArray(response.data)) {\n  videos = response.data;\n}\n\nvideos = videos.slice(0, 5);\n\nif (!videos.length) {\n  return [{\n    json: {\n      platform: 'TikTok',\n      title: 'TikTok - Dataset Apify vide',\n      description: '',\n      content_text: 'Relancer l acteur Apify pour rafraichir les donnees TikTok.',\n      postUrl: '',\n      views: null,\n      likes: null,\n      comments: null\n    }\n  }];\n}\n\nreturn videos.map(function(video) {\n  // Gerer les differents formats Apify TikTok\n  const text = video.text || video.desc || video.title || video.description || '';\n  const createTime = video.createTimeISO\n    ? video.createTimeISO.split('T')[0]\n    : (video.createTime ? new Date(video.createTime * 1000).toISOString().split('T')[0] : '');\n  const videoUrl = video.webVideoUrl || video.videoUrl || video.url || '';\n  const plays = video.playCount || (video.stats && video.stats.playCount) || video.diggCount || null;\n  const likes = video.diggCount || (video.stats && video.stats.diggCount) || null;\n  const comments = video.commentCount || (video.stats && video.stats.commentCount) || null;\n\n  return {\n    json: {\n      platform: 'TikTok',\n      title: (text || 'Video TikTok').substring(0, 120),\n      description: text,\n      content_text: text,\n      postUrl: videoUrl,\n      publishedAt: createTime,\n      views: plays,\n      likes: likes,\n      comments: comments\n    }\n  };\n});"
+      },
+      "id": "bf1c612d-a72e-4755-902e-8e4a9ad71653",
+      "name": "Extraire TikTok",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        592,
+        1456
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $json;\nconst token = input.facebookToken || '';\nif (!token) {\n  return [{\n    json: {\n      platform: 'Facebook',\n      title: 'Facebook - Token non configure',\n      description: '',\n      content_text: 'Le token Meta Graph API (facebookToken) n est pas configure. Configurer le token dans les parametres de l application.',\n      postUrl: '',\n      views: null,\n      likes: null,\n      comments: null\n    }\n  }];\n}\nconst posts = input.data || [];\nif (!posts.length) {\n  return [{ json: { platform: 'Facebook', title: 'Aucun post trouve', description: '', content_text: '', postUrl: '', views: null, likes: null, comments: null } }];\n}\nreturn posts.slice(0, 5).map(function(post) {\n  const date = post.created_time ? post.created_time.split('T')[0] : '';\n  return {\n    json: {\n      platform: 'Facebook',\n      title: 'Post Facebook - ' + date,\n      description: post.message || '',\n      content_text: post.message || '',\n      postUrl: 'https://facebook.com/' + (post.id || ''),\n      views: null,\n      likes: post.reactions ? post.reactions.summary.total_count : null,\n      comments: post.comments ? post.comments.summary.total_count : null\n    }\n  };\n});"
+      },
+      "id": "cde9a72b-e73e-4569-af9a-9216f8f45889",
+      "name": "Extraire Facebook",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        368,
+        1632
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json;\nconst platform = body.platform || 'Non specifie';\nconst title = body.title || '';\nconst description = body.description || '';\nconst content = body.content_text || '';\nconst postUrl = body.postUrl || '';\nconst views = body.views !== undefined && body.views !== null ? body.views : null;\nconst likes = body.likes !== undefined && body.likes !== null ? body.likes : null;\nconst comments = body.comments !== undefined && body.comments !== null ? body.comments : null;\n\nlet kpiSection = '';\nif (views !== null || likes !== null || comments !== null) {\n  kpiSection = 'KPI MESURES (a integrer dans l analyse engagement) :\\n' +\n    (views !== null ? '- Vues / Lectures : ' + views + '\\n' : '') +\n    (likes !== null ? '- Likes / J aime : ' + likes + '\\n' : '') +\n    (comments !== null ? '- Commentaires : ' + comments + '\\n' : '') +\n    '\\n';\n}\n\nconst prompt = 'Tu es un expert en marketing de contenu specialise dans les psychologues et coachs bien-etre francophones.\\n\\n' +\n  'Analyse ce contenu publie par Anna Ollivier, psychologue clinicienne qui developpe une formation en ligne sur la gestion emotionnelle.\\n\\n' +\n  '---\\n' +\n  'PLATEFORME: ' + platform + '\\n' +\n  'TITRE: ' + title + '\\n' +\n  'DESCRIPTION: ' + description + '\\n' +\n  'CONTENU / TRANSCRIPTION:\\n' + content + '\\n' +\n  (kpiSection ? kpiSection : '') +\n  '---\\n\\n' +\n  'Evalue selon 6 axes (score 1 a 10) :\\n' +\n  '1. HOOK - Accroche, curiosite, identification emotionnelle dans les 3 premieres secondes ou phrases\\n' +\n  '2. CLARTE - Positionnement unique visible, promesse claire, difference vs concurrents\\n' +\n  '3. CTA - Appel a action present, clair, adapte a la plateforme\\n' +\n  '4. SEO - Mots-cles psychologie, emotions, anxiete, bien-etre, confiance en soi\\n' +\n  '5. ENGAGEMENT - Empathie, storytelling, validation de la douleur du persona' + (views !== null ? ' (tenir compte des KPI reels)' : '') + '\\n' +\n  '6. ALIGNEMENT - Pertinence pour adultes 25-45 ans cherchant des outils pratiques pour leurs emotions\\n\\n' +\n  'Score global = moyenne ponderee (hook x1.5, engagement x1.5, autres x1) divisee par 6.5 fois 10.\\n\\n' +\n  'Pour mots_cles : liste 8 a 12 mots-cles SEO longue traine pertinents (sans #, en minuscules).\\n' +\n  'Pour hashtags : liste 5 hashtags avec # optimises pour la plateforme indiquee.\\n\\n' +\n  'Reponds UNIQUEMENT avec un JSON valide, sans backtick ni commentaire :\\n' +\n  '{\"scores\":{\"hook\":0,\"clarte\":0,\"cta\":0,\"seo\":0,\"engagement\":0,\"alignement\":0,\"global\":0},\"points_forts\":[\"p1\",\"p2\",\"p3\"],\"axes_amelioration\":[\"a1\",\"a2\",\"a3\"],\"hook_suggere\":\"...\",\"mots_cles\":[\"mc1\",\"mc2\",\"mc3\",\"mc4\",\"mc5\",\"mc6\",\"mc7\",\"mc8\"],\"hashtags\":[\"#h1\",\"#h2\",\"#h3\",\"#h4\",\"#h5\"],\"resume_analyse\":\"Synthese en 3 phrases\"}';\n\nconst apiBody = JSON.stringify({\n  model: 'claude-sonnet-4-20250514',\n  max_tokens: 2000,\n  messages: [{ role: 'user', content: prompt }]\n});\n\nreturn [{ json: { prompt, platform, title, description, content, postUrl, views, likes, comments, apiBody } }];"
+      },
+      "id": "09913e08-2c9e-4b2b-b586-47c969a824a9",
+      "name": "Build Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        816,
+        1360
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const claudeResponse = $json;\nlet claudeText = '';\nif (claudeResponse.content && Array.isArray(claudeResponse.content)) {\n  claudeText = claudeResponse.content[0].text || '';\n} else {\n  claudeText = JSON.stringify(claudeResponse);\n}\n\nlet analysis = {};\ntry {\n  analysis = JSON.parse(claudeText);\n} catch(e) {\n  const start = claudeText.indexOf('{');\n  const end = claudeText.lastIndexOf('}');\n  if (start !== -1 && end !== -1) {\n    try { analysis = JSON.parse(claudeText.substring(start, end + 1)); } catch(e2) {}\n  }\n}\n\n// Utiliser .item pour correspondre a l item courant (et non toujours le premier)\nconst prev = $('Build Prompt').item.json;\nconst scores = analysis.scores || {};\n\nreturn [{\n  json: {\n    platform: prev.platform,\n    title: prev.title,\n    postUrl: prev.postUrl,\n    views: prev.views,\n    likes: prev.likes,\n    comments: prev.comments,\n    scoreHook: scores.hook || 0,\n    scoreClarte: scores.clarte || 0,\n    scoreCta: scores.cta || 0,\n    scoreSeo: scores.seo || 0,\n    scoreEngagement: scores.engagement || 0,\n    scoreAlignement: scores.alignement || 0,\n    scoreGlobal: scores.global || 0,\n    pointsForts: (analysis.points_forts || []).join('\\n'),\n    axesAmelioration: (analysis.axes_amelioration || []).join('\\n'),\n    hookSuggere: analysis.hook_suggere || '',\n    hashtags: (analysis.hashtags || []).join(' '),\n    resumeAnalyse: analysis.resume_analyse || '',\n    motsCles: (analysis.mots_cles || []).join(', '),\n    dateAnalyse: new Date().toISOString().split('T')[0]\n  }\n}];"
+      },
+      "id": "fe832a54-ce21-45d7-b5ab-71e28cb12e9b",
+      "name": "Parse Resultat",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1248,
+        1360
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "databaseId": {
+          "__rl": true,
+          "value": "https://www.notion.so/c368911e69f4433db25f82354a97b5b6?v=9f0dccebc6454d618db3237b28022027&source=copy_link",
+          "mode": "url"
+        },
+        "title": "=Analyse {{ $json.platform }} - {{ $json.dateAnalyse }}",
+        "simple": false,
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Score Global|number",
+              "numberValue": "={{ $json.scoreGlobal }}"
+            },
+            {
+              "key": "Score Hook|number",
+              "numberValue": "={{ $json.scoreHook }}"
+            },
+            {
+              "key": "Score CTA|number",
+              "numberValue": "={{ $json.scoreCta }}"
+            },
+            {
+              "key": "Score SEO|number",
+              "numberValue": "={{ $json.scoreSeo }}"
+            },
+            {
+              "key": "Score Engagement|number",
+              "numberValue": "={{ $json.scoreEngagement }}"
+            },
+            {
+              "key": "Points Forts|rich_text",
+              "richText": true,
+              "text": {
+                "text": [
+                  {
+                    "text": "={{ $json.pointsForts }}",
+                    "annotationUi": {}
+                  }
+                ]
+              }
+            },
+            {
+              "key": "Axes Amelioration|rich_text",
+              "richText": true,
+              "text": {
+                "text": [
+                  {
+                    "text": "={{ $json.axesAmelioration }}",
+                    "annotationUi": {}
+                  }
+                ]
+              }
+            },
+            {
+              "key": "Hook Suggere|rich_text",
+              "richText": true,
+              "text": {
+                "text": [
+                  {
+                    "text": "={{ $json.hookSuggere }}",
+                    "annotationUi": {}
+                  }
+                ]
+              }
+            },
+            {
+              "key": "Hashtags|rich_text",
+              "richText": true,
+              "text": {
+                "text": [
+                  {
+                    "text": "={{ $json.hashtags }}",
+                    "annotationUi": {}
+                  }
+                ]
+              }
+            },
+            {
+              "key": "Resume|rich_text",
+              "richText": true,
+              "text": {
+                "text": [
+                  {
+                    "text": "={{ $json.resumeAnalyse }}",
+                    "annotationUi": {}
+                  }
+                ]
+              }
+            },
+            {
+              "key": "Ecosystème Mots-clés|rich_text",
+              "richText": true,
+              "text": {
+                "text": [
+                  {
+                    "text": "={{ $json.motsCles }}",
+                    "annotationUi": {}
+                  }
+                ]
+              }
+            },
+            {
+              "key": "Plateforme|rich_text",
+              "richText": true,
+              "text": {
+                "text": [
+                  {
+                    "text": "={{ $json.platform }}",
+                    "annotationUi": {}
+                  }
+                ]
+              }
+            },
+            {
+              "key": "Date Analyse|date",
+              "includeTime": false,
+              "date": "={{ $json.dateAnalyse }}"
+            },
+            {
+              "key": "Statut|select",
+              "selectValue": "Terminé"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b51ea932-0a12-41a4-b6a3-20ab7a3d4cb1",
+      "name": "Sauvegarder Notion",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        1472,
+        1360
+      ],
+      "credentials": {
+        "notionApi": {
+          "id": "q9hB78Buwmsq8eck",
+          "name": "Notion David account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ status: 'success', platform: $json.platform, scoreGlobal: $json.scoreGlobal, resume: $json.resumeAnalyse }) }}",
+        "options": {}
+      },
+      "id": "eec8c3c4-7a52-4b19-9f98-16ccedb151c3",
+      "name": "Reponse Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1696,
+        1360
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.apify.com/v2/datasets/Xdak3BG4yTZmYrNKR/items?limit=5&desc=true",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "d5b917d6-9381-4917-bbd5-c8d57581d4fc",
+      "name": "Fetch Instagram Apify",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        368,
+        1280
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "NSNjdOZZewLIKwgY",
+          "name": "APIFY Anna"
+        }
+      }
+    },
+    {
+      "id": "3cbdf2a1-98af-4f93-874a-352568488cdb",
+      "name": "Cascade LLM Analyse",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        500,
+        1360
+      ],
+      "parameters": {
+        "jsCode": "// Appel LLM — Ollama du VPS, reseau Docker interne.\n// AUCUNE authentification, donc AUCUN secret dans ce noeud. C'est la raison du\n// basculement depuis Anthropic, dont la cle etait ecrite en dur ici : un noeud\n// Code N8N ne peut ni lire $env ni utiliser httpRequestWithAuthentication, donc\n// appeler une API a cle depuis un Code node oblige a versionner le secret.\nconst OLLAMA_URL = 'http://172.18.0.1:11434/api/chat';\nconst MODELE = 'glm-5.2:cloud';\nconst NUM_PREDICT = 2000;\n\nconst prompt = $input.first().json.prompt;\n\nlet responseText = null;\nlet erreur = null;\n\ntry {\n  const resp = await this.helpers.httpRequest({\n    method: 'POST',\n    url: OLLAMA_URL,\n    body: JSON.stringify({\n      model: MODELE,\n      messages: [{ role: 'user', content: prompt }],\n      stream: false,\n      // Obligatoire : sur un modele de raisonnement, le « thinking » consomme\n      // tout num_predict et message.content revient vide.\n      think: false,\n      options: { num_predict: NUM_PREDICT }\n    }),\n    timeout: 300000\n  });\n  if (resp && resp.message && resp.message.content) {\n    responseText = resp.message.content;\n  } else {\n    erreur = 'reponse sans message.content (think non desactive ?)';\n  }\n} catch (e) {\n  erreur = e.message;\n}\n\nif (!responseText) {\n  throw new Error('Appel LLM (' + MODELE + ') echoue : ' + (erreur || 'inconnue'));\n}\n\n// Sortie au format Anthropic : les noeuds Parse en aval restent inchanges.\nreturn [{ json: {\n  content: [{ type: 'text', text: responseText }],\n  model: MODELE,\n  type: 'message',\n  role: 'assistant'\n} }];\n"
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Préparer Plateformes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Préparer Plateformes": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Fetch YouTube 5 Vidéos",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fetch Instagram Apify",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fetch TikTok Apify",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Extraire Facebook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch YouTube 5 Vidéos": {
+      "main": [
+        [
+          {
+            "node": "Extraire YouTube",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extraire YouTube": {
+      "main": [
+        [
+          {
+            "node": "Build Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extraire Instagram": {
+      "main": [
+        [
+          {
+            "node": "Build Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch TikTok Apify": {
+      "main": [
+        [
+          {
+            "node": "Extraire TikTok",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extraire TikTok": {
+      "main": [
+        [
+          {
+            "node": "Build Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extraire Facebook": {
+      "main": [
+        [
+          {
+            "node": "Build Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Resultat": {
+      "main": [
+        [
+          {
+            "node": "Sauvegarder Notion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sauvegarder Notion": {
+      "main": [
+        [
+          {
+            "node": "Reponse Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Instagram Apify": {
+      "main": [
+        [
+          {
+            "node": "Extraire Instagram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Prompt": {
+      "main": [
+        [
+          {
+            "node": "Cascade LLM Analyse",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cascade LLM Analyse": {
+      "main": [
+        [
+          {
+            "node": "Parse Resultat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false,
+    "timeSavedMode": "fixed",
+    "errorWorkflow": "JE0iTZOlmZqynNje",
+    "binaryMode": "separate"
+  }
+}
