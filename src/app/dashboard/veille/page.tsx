@@ -6,7 +6,7 @@ import FilterChips from "@/components/FilterChips";
 import PromptCard from "@/components/PromptCard";
 import LaunchButton from "@/components/LaunchButton";
 import NetworkBadge from "@/components/NetworkBadge";
-import { Eye, RefreshCw, Search, Lightbulb, Target, Users, TrendingUp, BookOpen, Megaphone, BarChart3, CheckCircle, Key } from "lucide-react";
+import { Eye, RefreshCw, Search, Lightbulb, Target, Users, TrendingUp, BookOpen, Megaphone, BarChart3, CheckCircle, Key, Wand2, Copy } from "lucide-react";
 
 interface VeilleItem {
     id: string;
@@ -25,6 +25,7 @@ interface VeilleItem {
     produitsConcurrents: string;
     positionnementAnna: string;
     motsClesUtilises: string;
+    prompt: string;
 }
 
 function extractUrls(text: string): { text: string; urls: Array<{ label: string; url: string }> } {
@@ -74,6 +75,38 @@ export default function VeillePage() {
     const [searching, setSearching] = useState(false);
     const [statusMessage, setStatusMessage] = useState("");
     const [selectedId, setSelectedId] = useState<string | null>(null);
+    const [promptEnCours, setPromptEnCours] = useState<string | null>(null);
+    const [promptErreur, setPromptErreur] = useState("");
+    const [promptCopie, setPromptCopie] = useState(false);
+
+    const genererPrompt = async (pageId: string) => {
+        setPromptEnCours(pageId);
+        setPromptErreur("");
+        try {
+            const r = await fetch("/api/notion/veille/prompt", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ pageId }),
+            });
+            const data = await r.json();
+            if (!r.ok || data.error) throw new Error(data.error || "Erreur " + r.status);
+            setItems((prev) => prev.map((v) => (v.id === pageId ? { ...v, prompt: data.prompt } : v)));
+        } catch (e: any) {
+            setPromptErreur(e.message || "Erreur lors de la génération du prompt");
+        } finally {
+            setPromptEnCours(null);
+        }
+    };
+
+    const copierPrompt = async (texte: string) => {
+        try {
+            await navigator.clipboard.writeText(texte);
+            setPromptCopie(true);
+            setTimeout(() => setPromptCopie(false), 2000);
+        } catch {
+            /* presse-papiers indisponible : le texte reste sélectionnable */
+        }
+    };
 
     const loadData = async () => {
         setLoading(true);
@@ -227,6 +260,11 @@ export default function VeillePage() {
                                         <span className={`status-pill ${v.statut?.toLowerCase().includes("termin") ? "status-done" : "status-pending"}`}>
                                             {v.statut || "En cours"}
                                         </span>
+                                        {v.prompt && (
+                                            <span className="priority-pill" style={{ background: "var(--rose-ll)", color: "var(--mauve-d)", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                                                <Wand2 size={10} /> Prompt
+                                            </span>
+                                        )}
                                     </div>
                                     <div style={{ fontFamily: "var(--font-sans)", fontWeight: 500, fontSize: "var(--size-body)", color: "var(--fg)" }}>
                                         {v.title || "Veille sans titre"}
@@ -294,6 +332,51 @@ export default function VeillePage() {
                                     <VeilleSection title="Formats performants" content={selected.formatsPerformants} icon={<Megaphone size={14} />} />
                                     <VeilleSection title="Mots-clés opportunités" content={selected.motsCles} icon={<Key size={14} />} />
                                     <VeilleSection title="Recommandations" content={selected.recommandations} icon={<CheckCircle size={14} />} />
+
+                                    {/* Prompt de création — généré par le workflow N8N, à adapter par Anna */}
+                                    <div style={{ background: "var(--bg-soft)", borderRadius: "var(--radius)", padding: "var(--space-4)", marginBottom: "var(--space-3)", border: "1px solid var(--rose-ll)" }}>
+                                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "var(--space-2)" }}>
+                                            <p style={{ fontSize: "var(--size-tag)", fontWeight: 500, color: "var(--fg-muted)", letterSpacing: "var(--tracking-eyebrow)", textTransform: "uppercase", display: "flex", alignItems: "center", gap: 6 }}>
+                                                <Wand2 size={14} /> Prompt de création
+                                            </p>
+                                            <div style={{ display: "flex", gap: "var(--space-2)" }}>
+                                                {selected.prompt && (
+                                                    <button className="btn btn-ghost" onClick={() => copierPrompt(selected.prompt)}>
+                                                        <Copy size={12} /> {promptCopie ? "Copié !" : "Copier"}
+                                                    </button>
+                                                )}
+                                                <button
+                                                    className="btn btn-ghost"
+                                                    disabled={promptEnCours !== null}
+                                                    onClick={() => genererPrompt(selected.id)}
+                                                >
+                                                    <Wand2 size={12} />
+                                                    {promptEnCours === selected.id
+                                                        ? "Génération…"
+                                                        : selected.prompt ? "Régénérer" : "Créer le prompt"}
+                                                </button>
+                                            </div>
+                                        </div>
+                                        {promptEnCours === selected.id && (
+                                            <p style={{ fontSize: "var(--size-meta)", color: "var(--mauve)" }}>
+                                                Analyse de la veille et reformulation de l&apos;idée en cours (10 à 60 s)…
+                                            </p>
+                                        )}
+                                        {promptErreur && promptEnCours === null && (
+                                            <p style={{ fontSize: "var(--size-meta)", color: "var(--rose)" }}>{promptErreur}</p>
+                                        )}
+                                        {selected.prompt ? (
+                                            <p style={{ fontSize: "var(--size-body)", color: "var(--fg)", lineHeight: "var(--leading-body)", whiteSpace: "pre-line" }}>
+                                                {selected.prompt}
+                                            </p>
+                                        ) : (
+                                            promptEnCours !== selected.id && (
+                                                <p style={{ fontSize: "var(--size-meta)", color: "var(--fg-muted)" }}>
+                                                    Reformule en français l&apos;idée de fond publiée par la concurrence, prête à adapter par Anna. Le prompt est aussi enregistré dans la colonne Prompt de la base Notion.
+                                                </p>
+                                            )
+                                        )}
+                                    </div>
                                 </div>
                             ) : (
                                 <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", minHeight: 300, color: "var(--fg-muted)", fontSize: "var(--size-body)" }}>
