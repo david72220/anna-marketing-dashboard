@@ -23,6 +23,7 @@ interface VeilleItem {
     produitsConcurrents: string;
     positionnementAnna: string;
     motsClesUtilises: string;
+    prompt: string;
     createdTime: string;
 }
 
@@ -47,6 +48,7 @@ async function fetchVeille(): Promise<VeilleItem[]> {
             produitsConcurrents: getPropertyText(props["Produits Concurrents"] || {}),
             positionnementAnna: getPropertyText(props["Positionnement Anna"] || {}),
             motsClesUtilises: getPropertyText(props["Mots Cles Utilises"] || {}),
+            prompt: getPropertyText(props["Prompt"] || {}),
             createdTime: page.created_time as string,
         };
     });
