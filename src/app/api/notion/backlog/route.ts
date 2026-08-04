@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { queryDatabase, getPageTitle, getPropertyText } from "@/lib/notion";
+import { enTetesWebhookN8N } from "@/lib/n8n";
 
 const DB_ID = process.env.NOTION_BACKLOG_DB_ID!;
 
@@ -103,7 +104,7 @@ export async function POST(request: Request) {
             try {
                 const n8nRes = await fetch(webhookUrl, {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    headers: enTetesWebhookN8N(),
                     body: JSON.stringify({
                         prompt: prompt.trim(),
                         questions: questions || "",

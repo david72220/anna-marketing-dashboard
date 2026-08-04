@@ -14,6 +14,7 @@ import {
   Instagram,
   Facebook,
   LogOut,
+  TrendingUp,
 } from "lucide-react";
 import Image from "next/image";
 
@@ -23,6 +24,7 @@ const NAV = [
   { href: "/dashboard/veille", label: "Veille Concurrence", icon: Eye },
   { href: "/dashboard/backlog", label: "Backlog Posts", icon: PenLine },
   { href: "/dashboard/metrics", label: "KPI réseaux", icon: BarChart3 },
+  { href: "/dashboard/concurrents", label: "Concurrents", icon: TrendingUp },
 ];
 
 const SOCIAL_LINKS = [

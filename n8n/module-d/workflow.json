@@ -1,0 +1,778 @@
+{
+  "name": "📈 Anna — Module D — Veille Performance Concurrents",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "triggerAtDay": [
+                1
+              ],
+              "triggerAtHour": 8
+            }
+          ]
+        }
+      },
+      "id": "f060f414-671a-4107-af06-f060f414671a",
+      "name": "Schedule Lundi 8h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "getAll",
+        "databaseId": {
+          "__rl": true,
+          "mode": "url",
+          "value": "https://www.notion.so/4aa33ab381b84f75a5b76511c97d7a3b"
+        },
+        "returnAll": true,
+        "simple": false,
+        "options": {}
+      },
+      "id": "6eb5ecd6-8ca5-4121-a6eb-6eb5ecd68ca5",
+      "name": "Lire Comptes Actifs",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2,
+      "position": [
+        220,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Lit les comptes actifs et prépare les listes de handles par plateforme.\nconst comptes = $input.all().map((i) => i.json);\n\nconst actifs = comptes.filter((c) => c.properties && c.properties.Actif && c.properties.Actif.checkbox === true);\n\nconst parPlateforme = { Instagram: [], TikTok: [] };\nconst fiches = {};\n\nfor (const c of actifs) {\n  const p = c.properties || {};\n  const plateforme = p.Plateforme && p.Plateforme.select ? p.Plateforme.select.name : null;\n  const handleBrut = p.Handle && p.Handle.rich_text && p.Handle.rich_text[0] ? p.Handle.rich_text[0].plain_text : '';\n  const handle = String(handleBrut || '').toLowerCase().replace('@', '').trim();\n\n  if (!plateforme || !handle || !parPlateforme[plateforme]) continue;\n\n  parPlateforme[plateforme].push(handle);\n  fiches[plateforme + ':' + handle] = c.id;\n}\n\nconst depuis = new Date(Date.now() - 14 * 24 * 3600 * 1000).toISOString();\n\nreturn [{ json: {\n  instagram: parPlateforme.Instagram,\n  tiktok: parPlateforme.TikTok,\n  fiches,\n  depuis,\n  nbComptes: actifs.length\n} }];"
+      },
+      "id": "eb787461-db28-4ddd-aeb7-eb787461db28",
+      "name": "Preparer Handles",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apify.com/v2/acts/apify~instagram-scraper/run-sync-get-dataset-items",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ directUrls: $json.instagram.map(h => 'https://www.instagram.com/' + h + '/'), resultsType: 'posts', resultsLimit: 15, addParentData: false }) }}",
+        "options": {
+          "timeout": 300000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "de3c6828-2d34-400e-ade3-de3c68282d34",
+      "name": "Apify Instagram",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        100
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apify.com/v2/acts/clockworks~tiktok-scraper/run-sync-get-dataset-items",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ profiles: $('Preparer Handles').first().json.tiktok, resultsPerPage: 15, shouldDownloadVideos: false, shouldDownloadCovers: false, shouldDownloadSubtitles: false, shouldDownloadSlideshowImages: false }) }}",
+        "options": {
+          "timeout": 300000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "e378a1e0-25c4-45fc-ae37-e378a1e025c4",
+      "name": "Apify TikTok",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        100
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Fichier généré automatiquement — NE JAMAIS ÉDITER À LA MAIN.\n// Régénérer avec : npm run build:n8n\n// Source de vérité : src/lib/veille/normalize.mjs et src/lib/veille/score.mjs,\n// couverts par leurs tests (npm test). Ce sont eux qui font foi, pas ce fichier.\n\n// ---- Origine : src/lib/veille/normalize.mjs ----\nconst ACCROCHE_MAX = 80;\n\nfunction accrocheDepuis(legende) {\n    const texte = String(legende || \"\").replace(/\\s+/g, \" \").trim();\n    if (!texte) return \"(sans légende)\";\n    return texte.slice(0, ACCROCHE_MAX);\n}\n\nfunction entier(valeur) {\n    const n = parseInt(String(valeur ?? \"0\"), 10);\n    return Number.isFinite(n) && n > 0 ? n : 0;\n}\n\nfunction typeInstagram(item) {\n    if (item.type === \"Sidecar\") return \"Carrousel\";\n    if (item.type === \"Video\" || item.productType === \"clips\") return \"Reel\";\n    return \"Photo\";\n}\n\nfunction normaliserInstagram(items) {\n    if (!Array.isArray(items)) return [];\n    const resultat = [];\n    for (const item of items) {\n        if (!item || typeof item !== \"object\" || !item.id) continue;\n        const type = typeInstagram(item);\n        resultat.push({\n            postId: String(item.id),\n            plateforme: \"Instagram\",\n            handle: String(item.ownerUsername || \"\").toLowerCase().replace(\"@\", \"\"),\n            url: item.url || (item.shortCode ? `https://www.instagram.com/p/${item.shortCode}/` : \"\"),\n            datePublication: item.timestamp || \"\",\n            type,\n            accroche: accrocheDepuis(item.caption),\n            legende: String(item.caption || \"\"),\n            vues: entier(item.videoPlayCount ?? item.videoViewCount),\n            likes: entier(item.likesCount),\n            commentaires: entier(item.commentsCount),\n            metriqueScore: type === \"Reel\" ? \"Vues\" : \"Likes\",\n        });\n    }\n    return resultat;\n}\n\nfunction normaliserTikTok(items) {\n    if (!Array.isArray(items)) return [];\n    const resultat = [];\n    for (const item of items) {\n        if (!item || typeof item !== \"object\" || !item.id) continue;\n        const auteur = item.authorMeta || {};\n        resultat.push({\n            postId: String(item.id),\n            plateforme: \"TikTok\",\n            handle: String(auteur.name || item.uniqueId || \"\").toLowerCase().replace(\"@\", \"\"),\n            url: item.webVideoUrl || \"\",\n            datePublication: item.createTimeISO || \"\",\n            type: \"TikTok\",\n            accroche: accrocheDepuis(item.text),\n            legende: String(item.text || \"\"),\n            vues: entier(item.playCount),\n            likes: entier(item.diggCount),\n            commentaires: entier(item.commentCount),\n            metriqueScore: \"Vues\",\n        });\n    }\n    return resultat;\n}\n\nfunction normaliser(plateforme, items) {\n    if (plateforme === \"Instagram\") return normaliserInstagram(items);\n    if (plateforme === \"TikTok\") return normaliserTikTok(items);\n    return [];\n}\n\n// ---- Origine : src/lib/veille/score.mjs ----\nconst TAILLE_BASELINE = 30;\nconst ECHANTILLON_MINIMUM = 10;\nconst SEUIL_SURPERFORMANCE = 1.5;\n// Six mois : au-delà, \"d'habitude\" pour ce compte n'a plus de sens (ex. compte\n// dont l'audience s'est effondrée depuis un pic viral ancien).\nconst FENETRE_BASELINE_JOURS = 183;\n\n// Notion peut renvoyer la métrique avec une casse quelconque ; toute valeur\n// inconnue retombe sur les vues, qui est le cas majoritaire.\nfunction metriqueNormalisee(post) {\n    return String(post?.metriqueScore || \"\").trim().toLowerCase() === \"likes\" ? \"Likes\" : \"Vues\";\n}\n\n// Retourne null — et non 0 — quand la valeur est absente ou illisible, pour que\n// l'entrée soit écartée de l'échantillon au lieu de le diluer.\nfunction valeurMetrique(post) {\n    const brut = metriqueNormalisee(post) === \"Likes\" ? post?.likes : post?.vues;\n    if (brut === null || brut === undefined || brut === \"\") return null;\n    const n = Number(brut);\n    return Number.isFinite(n) ? n : null;\n}\n\nfunction instant(post) {\n    const t = Date.parse(post?.datePublication);\n    return Number.isNaN(t) ? null : t;\n}\n\nfunction moyenneReference(post, historique) {\n    const vide = { moyenne: 0, echantillon: 0 };\n    if (!post || typeof post !== \"object\") return vide;\n\n    const metrique = metriqueNormalisee(post);\n    // Ancré sur la publication évaluée (pas Date.now()) : la fonction reste\n    // pure et compare une publication au contexte du compte à ce moment-là.\n    // Si la publication évaluée n'a pas de date exploitable, on ne peut pas\n    // ancrer la fenêtre : aucun filtre d'âge n'est appliqué.\n    const instantEvalue = instant(post);\n    const bornInf = instantEvalue === null ? null : instantEvalue - FENETRE_BASELINE_JOURS * 24 * 60 * 60 * 1000;\n    const vus = new Set();\n    const pertinents = [];\n\n    for (const h of Array.isArray(historique) ? historique : []) {\n        if (!h || typeof h !== \"object\") continue;\n        if (post.postId && h.postId === post.postId) continue;\n        if (h.handle !== post.handle) continue;\n        if (h.plateforme !== post.plateforme) continue;\n        if (metriqueNormalisee(h) !== metrique) continue;\n\n        const t = instant(h);\n        if (t === null) continue;\n        if (bornInf !== null && t < bornInf) continue;\n\n        const valeur = valeurMetrique(h);\n        if (valeur === null) continue;\n\n        const cle = h.postId || `${h.url || \"\"}|${t}`;\n        if (vus.has(cle)) continue;\n        vus.add(cle);\n\n        pertinents.push({ t, valeur });\n    }\n\n    if (pertinents.length === 0) return vide;\n\n    pertinents.sort((a, b) => b.t - a.t);\n    const retenus = pertinents.slice(0, TAILLE_BASELINE);\n\n    const total = retenus.reduce((somme, p) => somme + p.valeur, 0);\n    return {\n        moyenne: Math.round((total / retenus.length) * 100) / 100,\n        echantillon: retenus.length,\n    };\n}\n\nfunction calculerScore(post, historique) {\n    const { moyenne, echantillon } = moyenneReference(post, historique);\n    const fiable = echantillon >= ECHANTILLON_MINIMUM;\n    const valeur = valeurMetrique(post);\n\n    if (valeur === null || !(moyenne > 0)) {\n        return { score: null, moyenne, echantillon, fiable: false, surperforme: false };\n    }\n\n    const score = Math.round((valeur / moyenne) * 100) / 100;\n\n    return {\n        score,\n        moyenne,\n        echantillon,\n        fiable,\n        surperforme: fiable && score >= SEUIL_SURPERFORMANCE,\n    };\n}\n\nfunction repartir(collectes, pagesParPostId) {\n    const creations = [];\n    const majs = [];\n    const vus = new Set();\n    const pages = pagesParPostId && typeof pagesParPostId === \"object\" ? pagesParPostId : {};\n\n    for (const post of Array.isArray(collectes) ? collectes : []) {\n        if (!post || typeof post !== \"object\") continue;\n        if (!post.postId) continue;\n        if (vus.has(post.postId)) continue;\n        vus.add(post.postId);\n\n        const pageId = pages[post.postId];\n        if (pageId) majs.push({ post, pageId });\n        else creations.push(post);\n    }\n\n    return { creations, majs };\n}\n\n// ---- glue N8N ----\nconst prep = $('Preparer Handles').first().json;\n\nconst erreurs = [];\n\n// Avec onError: continueRegularOutput, un appel Apify qui échoue n'émet pas\n// d'exception : il émet un item { error: {...} } comme un résultat normal.\n// Sans cette détection, une panne de scraping remonte comme « 0 publication\n// collectée », c'est-à-dire un succès. C'est arrivé.\nfunction collecter(nomNoeud, plateforme) {\n  let items;\n  try {\n    items = $(nomNoeud).all().map((i) => i.json);\n  } catch (e) {\n    erreurs.push(plateforme + ' : ' + e.message);\n    return [];\n  }\n\n  const enErreur = items.filter((x) => x && x.error);\n  if (enErreur.length > 0) {\n    const detail = enErreur[0].error;\n    const message = (detail && detail.message) || JSON.stringify(detail);\n    erreurs.push(plateforme + ' : ' + String(message).slice(0, 200));\n    return [];\n  }\n\n  return items;\n}\n\nconst brutIg = collecter('Apify Instagram', 'Instagram');\nconst brutTt = collecter('Apify TikTok', 'TikTok');\n\nconst depuis = new Date(prep.depuis).getTime();\n\n// Fenêtre glissante + rattachement à la fiche compte Notion.\n// Un post dont le compte n'est pas dans le registre est écarté : il ne doit\n// pas polluer les moyennes d'un autre compte.\nconst posts = [];\nfor (const p of [...normaliserInstagram(brutIg), ...normaliserTikTok(brutTt)]) {\n  if (!p.datePublication) continue;\n  const t = Date.parse(p.datePublication);\n  if (Number.isNaN(t) || t < depuis) continue;\n\n  const pageCompte = prep.fiches[p.plateforme + ':' + p.handle];\n  if (!pageCompte) continue;\n\n  posts.push({ ...p, pageCompte });\n}\n\nreturn [{ json: { posts, erreurs, nbComptes: prep.nbComptes } }];"
+      },
+      "id": "7de39081-48fd-4624-a7de-7de3908148fd",
+      "name": "Normaliser",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "getAll",
+        "databaseId": {
+          "__rl": true,
+          "mode": "url",
+          "value": "https://www.notion.so/4ad61bf0d0374dc78298d20b91a756ee"
+        },
+        "returnAll": true,
+        "simple": false,
+        "options": {}
+      },
+      "id": "6244b7c5-6883-4a6f-a624-6244b7c56883",
+      "name": "Lire Posts Existants",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Fichier généré automatiquement — NE JAMAIS ÉDITER À LA MAIN.\n// Régénérer avec : npm run build:n8n\n// Source de vérité : src/lib/veille/normalize.mjs et src/lib/veille/score.mjs,\n// couverts par leurs tests (npm test). Ce sont eux qui font foi, pas ce fichier.\n\n// ---- Origine : src/lib/veille/normalize.mjs ----\nconst ACCROCHE_MAX = 80;\n\nfunction accrocheDepuis(legende) {\n    const texte = String(legende || \"\").replace(/\\s+/g, \" \").trim();\n    if (!texte) return \"(sans légende)\";\n    return texte.slice(0, ACCROCHE_MAX);\n}\n\nfunction entier(valeur) {\n    const n = parseInt(String(valeur ?? \"0\"), 10);\n    return Number.isFinite(n) && n > 0 ? n : 0;\n}\n\nfunction typeInstagram(item) {\n    if (item.type === \"Sidecar\") return \"Carrousel\";\n    if (item.type === \"Video\" || item.productType === \"clips\") return \"Reel\";\n    return \"Photo\";\n}\n\nfunction normaliserInstagram(items) {\n    if (!Array.isArray(items)) return [];\n    const resultat = [];\n    for (const item of items) {\n        if (!item || typeof item !== \"object\" || !item.id) continue;\n        const type = typeInstagram(item);\n        resultat.push({\n            postId: String(item.id),\n            plateforme: \"Instagram\",\n            handle: String(item.ownerUsername || \"\").toLowerCase().replace(\"@\", \"\"),\n            url: item.url || (item.shortCode ? `https://www.instagram.com/p/${item.shortCode}/` : \"\"),\n            datePublication: item.timestamp || \"\",\n            type,\n            accroche: accrocheDepuis(item.caption),\n            legende: String(item.caption || \"\"),\n            vues: entier(item.videoPlayCount ?? item.videoViewCount),\n            likes: entier(item.likesCount),\n            commentaires: entier(item.commentsCount),\n            metriqueScore: type === \"Reel\" ? \"Vues\" : \"Likes\",\n        });\n    }\n    return resultat;\n}\n\nfunction normaliserTikTok(items) {\n    if (!Array.isArray(items)) return [];\n    const resultat = [];\n    for (const item of items) {\n        if (!item || typeof item !== \"object\" || !item.id) continue;\n        const auteur = item.authorMeta || {};\n        resultat.push({\n            postId: String(item.id),\n            plateforme: \"TikTok\",\n            handle: String(auteur.name || item.uniqueId || \"\").toLowerCase().replace(\"@\", \"\"),\n            url: item.webVideoUrl || \"\",\n            datePublication: item.createTimeISO || \"\",\n            type: \"TikTok\",\n            accroche: accrocheDepuis(item.text),\n            legende: String(item.text || \"\"),\n            vues: entier(item.playCount),\n            likes: entier(item.diggCount),\n            commentaires: entier(item.commentCount),\n            metriqueScore: \"Vues\",\n        });\n    }\n    return resultat;\n}\n\nfunction normaliser(plateforme, items) {\n    if (plateforme === \"Instagram\") return normaliserInstagram(items);\n    if (plateforme === \"TikTok\") return normaliserTikTok(items);\n    return [];\n}\n\n// ---- Origine : src/lib/veille/score.mjs ----\nconst TAILLE_BASELINE = 30;\nconst ECHANTILLON_MINIMUM = 10;\nconst SEUIL_SURPERFORMANCE = 1.5;\n// Six mois : au-delà, \"d'habitude\" pour ce compte n'a plus de sens (ex. compte\n// dont l'audience s'est effondrée depuis un pic viral ancien).\nconst FENETRE_BASELINE_JOURS = 183;\n\n// Notion peut renvoyer la métrique avec une casse quelconque ; toute valeur\n// inconnue retombe sur les vues, qui est le cas majoritaire.\nfunction metriqueNormalisee(post) {\n    return String(post?.metriqueScore || \"\").trim().toLowerCase() === \"likes\" ? \"Likes\" : \"Vues\";\n}\n\n// Retourne null — et non 0 — quand la valeur est absente ou illisible, pour que\n// l'entrée soit écartée de l'échantillon au lieu de le diluer.\nfunction valeurMetrique(post) {\n    const brut = metriqueNormalisee(post) === \"Likes\" ? post?.likes : post?.vues;\n    if (brut === null || brut === undefined || brut === \"\") return null;\n    const n = Number(brut);\n    return Number.isFinite(n) ? n : null;\n}\n\nfunction instant(post) {\n    const t = Date.parse(post?.datePublication);\n    return Number.isNaN(t) ? null : t;\n}\n\nfunction moyenneReference(post, historique) {\n    const vide = { moyenne: 0, echantillon: 0 };\n    if (!post || typeof post !== \"object\") return vide;\n\n    const metrique = metriqueNormalisee(post);\n    // Ancré sur la publication évaluée (pas Date.now()) : la fonction reste\n    // pure et compare une publication au contexte du compte à ce moment-là.\n    // Si la publication évaluée n'a pas de date exploitable, on ne peut pas\n    // ancrer la fenêtre : aucun filtre d'âge n'est appliqué.\n    const instantEvalue = instant(post);\n    const bornInf = instantEvalue === null ? null : instantEvalue - FENETRE_BASELINE_JOURS * 24 * 60 * 60 * 1000;\n    const vus = new Set();\n    const pertinents = [];\n\n    for (const h of Array.isArray(historique) ? historique : []) {\n        if (!h || typeof h !== \"object\") continue;\n        if (post.postId && h.postId === post.postId) continue;\n        if (h.handle !== post.handle) continue;\n        if (h.plateforme !== post.plateforme) continue;\n        if (metriqueNormalisee(h) !== metrique) continue;\n\n        const t = instant(h);\n        if (t === null) continue;\n        if (bornInf !== null && t < bornInf) continue;\n\n        const valeur = valeurMetrique(h);\n        if (valeur === null) continue;\n\n        const cle = h.postId || `${h.url || \"\"}|${t}`;\n        if (vus.has(cle)) continue;\n        vus.add(cle);\n\n        pertinents.push({ t, valeur });\n    }\n\n    if (pertinents.length === 0) return vide;\n\n    pertinents.sort((a, b) => b.t - a.t);\n    const retenus = pertinents.slice(0, TAILLE_BASELINE);\n\n    const total = retenus.reduce((somme, p) => somme + p.valeur, 0);\n    return {\n        moyenne: Math.round((total / retenus.length) * 100) / 100,\n        echantillon: retenus.length,\n    };\n}\n\nfunction calculerScore(post, historique) {\n    const { moyenne, echantillon } = moyenneReference(post, historique);\n    const fiable = echantillon >= ECHANTILLON_MINIMUM;\n    const valeur = valeurMetrique(post);\n\n    if (valeur === null || !(moyenne > 0)) {\n        return { score: null, moyenne, echantillon, fiable: false, surperforme: false };\n    }\n\n    const score = Math.round((valeur / moyenne) * 100) / 100;\n\n    return {\n        score,\n        moyenne,\n        echantillon,\n        fiable,\n        surperforme: fiable && score >= SEUIL_SURPERFORMANCE,\n    };\n}\n\nfunction repartir(collectes, pagesParPostId) {\n    const creations = [];\n    const majs = [];\n    const vus = new Set();\n    const pages = pagesParPostId && typeof pagesParPostId === \"object\" ? pagesParPostId : {};\n\n    for (const post of Array.isArray(collectes) ? collectes : []) {\n        if (!post || typeof post !== \"object\") continue;\n        if (!post.postId) continue;\n        if (vus.has(post.postId)) continue;\n        vus.add(post.postId);\n\n        const pageId = pages[post.postId];\n        if (pageId) majs.push({ post, pageId });\n        else creations.push(post);\n    }\n\n    return { creations, majs };\n}\n\n// ---- glue N8N ----\nconst collecte = $('Normaliser').first().json;\nconst pagesNotion = $input.all().map((i) => i.json).filter((p) => p && p.properties);\n\nconst txt = (prop) => {\n  if (!prop || !Array.isArray(prop.rich_text)) return '';\n  return prop.rich_text.map((t) => t.plain_text || (t.text && t.text.content) || '').join('');\n};\nconst nombre = (prop) => (prop && typeof prop.number === 'number' ? prop.number : null);\nconst selectNom = (prop) => (prop && prop.select ? prop.select.name : '');\nconst dateDebut = (prop) => (prop && prop.date ? prop.date.start : '');\n\n// Historique = ce qui est déjà en base. Le Handle est indispensable ici :\n// l'URL d'un post Instagram (/p/CODE/) ne contient pas le nom du compte.\nconst historique = pagesNotion.map((page) => ({\n  postId: txt(page.properties['Post ID']),\n  pageId: page.id,\n  handle: txt(page.properties['Handle']),\n  plateforme: selectNom(page.properties['Plateforme']),\n  metriqueScore: selectNom(page.properties['Métrique de score']) || 'Vues',\n  vues: nombre(page.properties['Vues']),\n  likes: nombre(page.properties['Likes']),\n  datePublication: dateDebut(page.properties['Date publication'])\n})).filter((h) => h.postId);\n\nconst pagesParPostId = {};\nfor (const h of historique) pagesParPostId[h.postId] = h.pageId;\n\n// Historique de travail = base + lot courant, pour que les publications de la\n// semaine se comparent aussi entre elles. Les compteurs des posts déjà connus\n// sont rafraîchis avec les valeurs qui viennent d'être collectées.\nconst parId = new Map();\nfor (const h of historique) parId.set(h.postId, h);\nfor (const p of collecte.posts) {\n  const ancien = parId.get(p.postId);\n  parId.set(p.postId, ancien ? { ...ancien, vues: p.vues, likes: p.likes } : p);\n}\nconst historiqueComplet = [...parId.values()];\n\nconst scores = collecte.posts.map((p) => ({ ...p, ...calculerScore(p, historiqueComplet) }));\nconst reparti = repartir(scores, pagesParPostId);\n\n// Moyennes par fiche compte, calculées séparément par métrique.\n// On repart de TOUS les comptes actifs, pas seulement de ceux qui ont produit\n// des publications : un compte dormant doit voir sa date de collecte mise à\n// jour, sinon rien ne distingue « interrogé, rien de neuf » de « jamais\n// interrogé ». Un compte sans publication récente ressort avec nbBaseline à 0.\nconst prep = $('Preparer Handles').first().json;\nconst comptesVus = {};\nfor (const cle of Object.keys(prep.fiches || {})) {\n  const separateur = cle.indexOf(':');\n  comptesVus[prep.fiches[cle]] = {\n    plateforme: cle.slice(0, separateur),\n    handle: cle.slice(separateur + 1)\n  };\n}\n\nconst moyenne = (valeurs) => (valeurs.length ? Math.round(valeurs.reduce((a, b) => a + b, 0) / valeurs.length) : 0);\n\nconst majComptes = Object.keys(comptesVus).map((pageId) => {\n  const info = comptesVus[pageId];\n  const duCompte = historiqueComplet.filter((h) => h.handle === info.handle && h.plateforme === info.plateforme);\n  return {\n    pageId,\n    moyenneVues: moyenne(duCompte.filter((h) => typeof h.vues === 'number' && h.vues > 0).map((h) => h.vues)),\n    moyenneLikes: moyenne(duCompte.filter((h) => typeof h.likes === 'number' && h.likes > 0).map((h) => h.likes)),\n    nbBaseline: duCompte.length\n  };\n});\n\nconst surperformants = scores.filter((s) => s.surperforme).sort((a, b) => b.score - a.score);\n\nreturn [{ json: {\n  creations: reparti.creations,\n  majs: reparti.majs,\n  majComptes,\n  surperformants,\n  erreurs: collecte.erreurs,\n  aujourdhui: new Date().toISOString().split('T')[0],\n  total: scores.length,\n  nbCreations: reparti.creations.length,\n  nbMajs: reparti.majs.length,\n  nbSurperformants: surperformants.length\n} }];"
+      },
+      "id": "df495c55-c8cb-40bf-adf4-df495c55c8cb",
+      "name": "Scorer",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Un item par page à créer. Tableau vide => le nœud Notion en aval ne tourne pas.\nconst s = $('Scorer').first().json;\nreturn (s.creations || []).map((p) => ({ json: { ...p, collecteLe: s.aujourdhui } }));"
+      },
+      "id": "37bc90e3-888e-47a5-a37b-37bc90e3888e",
+      "name": "Filtrer Creations",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Un item par page à mettre à jour, avec son identifiant de page Notion.\nconst s = $('Scorer').first().json;\nreturn (s.majs || []).map((m) => ({ json: { ...m.post, pageId: m.pageId, collecteLe: s.aujourdhui } }));"
+      },
+      "id": "23c2b1a6-c5a0-489d-a23c-23c2b1a6c5a0",
+      "name": "Filtrer Majs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Un item par fiche compte dont les moyennes sont à rafraîchir.\nconst s = $('Scorer').first().json;\nreturn (s.majComptes || []).map((c) => ({ json: { ...c, collecteLe: s.aujourdhui } }));"
+      },
+      "id": "a0a42a8b-02dd-4316-aa0a-a0a42a8b02dd",
+      "name": "Filtrer Comptes",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "databaseId": {
+          "__rl": true,
+          "mode": "url",
+          "value": "https://www.notion.so/4ad61bf0d0374dc78298d20b91a756ee"
+        },
+        "title": "={{ $json.accroche }}",
+        "simple": false,
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Compte|relation",
+              "relationValue": [
+                "={{ $json.pageCompte }}"
+              ]
+            },
+            {
+              "key": "Handle|rich_text",
+              "richText": true,
+              "text": {
+                "text": [
+                  {
+                    "text": "={{ $json.handle }}",
+                    "annotationUi": {}
+                  }
+                ]
+              }
+            },
+            {
+              "key": "Plateforme|select",
+              "selectValue": "={{ $json.plateforme }}"
+            },
+            {
+              "key": "Type|select",
+              "selectValue": "={{ $json.type }}"
+            },
+            {
+              "key": "URL post|url",
+              "urlValue": "={{ $json.url }}"
+            },
+            {
+              "key": "Date publication|date",
+              "includeTime": false,
+              "date": "={{ $json.datePublication }}"
+            },
+            {
+              "key": "Vues|number",
+              "numberValue": "={{ $json.vues }}"
+            },
+            {
+              "key": "Likes|number",
+              "numberValue": "={{ $json.likes }}"
+            },
+            {
+              "key": "Commentaires|number",
+              "numberValue": "={{ $json.commentaires }}"
+            },
+            {
+              "key": "Métrique de score|select",
+              "selectValue": "={{ $json.metriqueScore }}"
+            },
+            {
+              "key": "Score surperformance|number",
+              "numberValue": "={{ $json.score }}"
+            },
+            {
+              "key": "Post ID|rich_text",
+              "richText": true,
+              "text": {
+                "text": [
+                  {
+                    "text": "={{ $json.postId }}",
+                    "annotationUi": {}
+                  }
+                ]
+              }
+            },
+            {
+              "key": "Collecté le|date",
+              "includeTime": false,
+              "date": "={{ $json.collecteLe }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "9bce01df-6e86-456f-a9bc-9bce01df6e86",
+      "name": "Creer Posts",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "update",
+        "pageId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.pageId }}"
+        },
+        "simple": false,
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Vues|number",
+              "numberValue": "={{ $json.vues }}"
+            },
+            {
+              "key": "Likes|number",
+              "numberValue": "={{ $json.likes }}"
+            },
+            {
+              "key": "Commentaires|number",
+              "numberValue": "={{ $json.commentaires }}"
+            },
+            {
+              "key": "Score surperformance|number",
+              "numberValue": "={{ $json.score }}"
+            },
+            {
+              "key": "Handle|rich_text",
+              "richText": true,
+              "text": {
+                "text": [
+                  {
+                    "text": "={{ $json.handle }}",
+                    "annotationUi": {}
+                  }
+                ]
+              }
+            },
+            {
+              "key": "Collecté le|date",
+              "includeTime": false,
+              "date": "={{ $json.collecteLe }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "71b8de78-73c2-4c3d-a71b-71b8de7873c2",
+      "name": "Maj Posts",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "update",
+        "pageId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.pageId }}"
+        },
+        "simple": false,
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Moyenne vues|number",
+              "numberValue": "={{ $json.moyenneVues }}"
+            },
+            {
+              "key": "Moyenne likes|number",
+              "numberValue": "={{ $json.moyenneLikes }}"
+            },
+            {
+              "key": "Nb posts baseline|number",
+              "numberValue": "={{ $json.nbBaseline }}"
+            },
+            {
+              "key": "Dernière collecte|date",
+              "includeTime": false,
+              "date": "={{ $json.collecteLe }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "748e2956-e305-41fb-a748-748e2956e305",
+      "name": "Maj Comptes",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "getAll",
+        "databaseId": {
+          "__rl": true,
+          "mode": "url",
+          "value": "https://www.notion.so/4ad61bf0d0374dc78298d20b91a756ee"
+        },
+        "returnAll": true,
+        "simple": false,
+        "options": {}
+      },
+      "id": "cdbf708b-4433-429c-acdb-cdbf708b4433",
+      "name": "Lire Posts A Qualifier",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Publications à faire qualifier par le LLM.\n// On relit l'état réel de Notion plutôt que la sortie du calcul : à ce stade\n// les créations sont écrites, donc les nouvelles publications ont un identifiant\n// de page et peuvent recevoir leur analyse dès cette exécution.\nconst SEUIL = 1.5;\nconst MAX_PAR_EXECUTION = 8;\n\nconst txt = (prop) => {\n  if (!prop || !Array.isArray(prop.rich_text)) return '';\n  return prop.rich_text.map((t) => t.plain_text || (t.text && t.text.content) || '').join('');\n};\n\nconst candidats = $input.all()\n  .map((i) => i.json)\n  .filter((page) => page && page.properties)\n  .map((page) => {\n    const p = page.properties;\n    return {\n      pageId: page.id,\n      score: p['Score surperformance'] && typeof p['Score surperformance'].number === 'number' ? p['Score surperformance'].number : null,\n      dejaAnalyse: txt(p['Analyse IA']).trim().length > 0,\n      accroche: (p['Accroche'].title || []).map((t) => t.plain_text).join(''),\n      legende: '',\n      handle: txt(p['Handle']),\n      plateforme: p['Plateforme'] && p['Plateforme'].select ? p['Plateforme'].select.name : '',\n      type: p['Type'] && p['Type'].select ? p['Type'].select.name : '',\n      metriqueScore: p['Métrique de score'] && p['Métrique de score'].select ? p['Métrique de score'].select.name : 'Vues',\n      vues: p['Vues'] && typeof p['Vues'].number === 'number' ? p['Vues'].number : 0,\n      likes: p['Likes'] && typeof p['Likes'].number === 'number' ? p['Likes'].number : 0,\n      url: p['URL post'] ? p['URL post'].url : ''\n    };\n  })\n  // L'analyse n'est jamais repayée : une publication déjà qualifiée est ignorée.\n  .filter((c) => c.score !== null && c.score >= SEUIL && !c.dejaAnalyse)\n  .sort((a, b) => b.score - a.score)\n  .slice(0, MAX_PAR_EXECUTION);\n\n// Les légendes complètes ne sont pas dans Notion (seule l'accroche l'est).\n// On les récupère depuis le lot fraîchement collecté quand elles y sont.\nconst collecte = $('Normaliser').first().json.posts || [];\nconst parAccroche = {};\nfor (const p of collecte) parAccroche[p.accroche] = p.legende;\n\nreturn candidats.map((c) => ({ json: { ...c, legende: parAccroche[c.accroche] || c.accroche } }));"
+      },
+      "id": "253058aa-3887-40eb-a253-253058aa3887",
+      "name": "Filtrer A Qualifier",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Un prompt par publication. Le nœud cascade en aval tourne une fois par item.\nreturn $input.all().map((item) => {\nconst p = item.json;\nconst valeur = p.metriqueScore === 'Likes' ? p.likes : p.vues;\n\nconst prompt = `Tu analyses une publication de concurrent qui a nettement surperformé par rapport à la moyenne de son propre compte.\n\nCompte : @${p.handle} sur ${p.plateforme}\nType : ${p.type}\nScore de surperformance : ${p.score}× la moyenne habituelle de ce compte\nMétrique : ${p.metriqueScore} — ${valeur}\nLégende : ${String(p.legende || '').slice(0, 1500)}\n\nContexte : Anna Ollivier est psychologue clinicienne, spécialisée en développement émotionnel de l'enfant. Elle crée du contenu pour les parents.\n\nRéponds UNIQUEMENT en JSON valide, sans backtick ni commentaire :\n{\n  \"angle\": [\"deux à quatre mots-clés d'angle éditorial\"],\n  \"format\": \"description courte du format\",\n  \"accroche\": \"type d'accroche utilisé\",\n  \"pourquoi\": \"deux phrases maximum sur ce qui explique la performance\",\n  \"transposable\": \"Oui | Non | À adapter\"\n}`;\n\nreturn { json: { prompt, pageId: p.pageId } };\n});"
+      },
+      "id": "160fce9a-32ff-4ca5-a160-160fce9a32ff",
+      "name": "Build Prompt Qualification",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://172.18.0.1:11434/api/chat",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'glm-5.2:cloud', messages: [{ role: 'user', content: $json.prompt }], stream: false, think: false, options: { num_predict: 800 } }) }}",
+        "options": {
+          "timeout": 300000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "e6ad7776-8563-4398-ae6a-e6ad77768563",
+      "name": "Appel LLM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2860,
+        300
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const resultats = [];\n\n// Le nœud HTTP Request ne réémet pas les champs d'entrée : on réapparie la\n// réponse à sa publication par l'index. Le nœud émet un item par item d'entrée,\n// dans l'ordre, mais on vérifie quand même plutôt que de supposer.\nconst demandes = $('Build Prompt Qualification').all().map((i) => i.json);\nconst reponses = $input.all();\n\nif (reponses.length !== demandes.length) {\n  throw new Error(\n    'Appariement impossible : ' + reponses.length + ' réponse(s) pour ' +\n    demandes.length + ' demande(s). Aucune analyse écrite pour éviter de les attribuer au mauvais post.'\n  );\n}\n\nfor (let i = 0; i < reponses.length; i++) {\n  const j = reponses[i].json;\n  const pageId = demandes[i].pageId;\n\n  // onError: continueRegularOutput fait passer un échec HTTP comme un item normal.\n  if (!j || j.error) continue;\n\n  // Réponse Ollama : { message: { content } }. Un content vide sur un modèle de\n  // raisonnement signale un think non désactivé.\n  const brut = (j.message && j.message.content) || '';\n  const nettoye = brut.replace(/```json/g, '').replace(/```/g, '').trim();\n\n  let data = null;\n  try {\n    data = JSON.parse(nettoye);\n  } catch (e) {\n    const debut = nettoye.indexOf('{');\n    const fin = nettoye.lastIndexOf('}');\n    if (debut !== -1 && fin !== -1) {\n      try { data = JSON.parse(nettoye.slice(debut, fin + 1)); } catch (e2) { data = null; }\n    }\n  }\n\n  if (!data) continue;\n\n  const angles = Array.isArray(data.angle) ? data.angle.slice(0, 4).join(', ') : String(data.angle || '');\n  const transposable = ['Oui', 'Non', 'À adapter'].includes(data.transposable) ? data.transposable : 'À adapter';\n\n  // Notion refuse tout objet rich_text au-delà de 2000 caractères.\n  const analyse = [\n    'Angle : ' + angles,\n    'Format : ' + (data.format || ''),\n    'Accroche : ' + (data.accroche || ''),\n    '',\n    data.pourquoi || ''\n  ].join('\\n').slice(0, 1900);\n\n  resultats.push({ json: { pageId, analyse, transposable } });\n}\n\nreturn resultats;"
+      },
+      "id": "574a42be-a7ec-4b8d-a574-574a42bea7ec",
+      "name": "Parser Qualification",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3080,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "update",
+        "pageId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.pageId }}"
+        },
+        "simple": false,
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Analyse IA|rich_text",
+              "richText": true,
+              "text": {
+                "text": [
+                  {
+                    "text": "={{ $json.analyse }}",
+                    "annotationUi": {}
+                  }
+                ]
+              }
+            },
+            {
+              "key": "Transposable Anna|select",
+              "selectValue": "={{ $json.transposable }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b741e7c1-9177-4c13-ab74-b741e7c19177",
+      "name": "Maj Analyse Posts",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2,
+      "position": [
+        3300,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const s = $('Scorer').first().json;\n\nconst lien = (p) => p.url || '';\nconst ligne = (p, i) => {\n  const valeur = p.metriqueScore === 'Likes' ? p.likes + ' likes' : p.vues + ' vues';\n  return '<div style=\"border:1px solid #e0e0e0;border-radius:8px;padding:14px;margin:10px 0;\">' +\n    '<strong style=\"color:#7c3aed\">' + p.score + '× la moyenne du compte</strong> — @' + p.handle +\n    ' (' + p.plateforme + ', ' + p.type + ')<br>' +\n    '<em>' + (p.accroche || '') + '</em><br>' +\n    valeur + ' · <a href=\"' + lien(p) + '\">voir la publication</a></div>';\n};\n\nconst top = (s.surperformants || []).slice(0, 5).map(ligne).join('') ||\n  '<p>Aucune publication au-dessus du seuil cette semaine.</p>';\n\n// Un compte sans aucune publication en base est dormant ou mal saisi.\n// Sans ce signalement, rien ne le distingue d'une collecte réussie mais vide.\nconst dormants = (s.majComptes || []).filter((c) => !c.nbBaseline);\nconst blocDormants = dormants.length\n  ? '<h3>Comptes sans publication récente</h3><p>' + dormants.length +\n    ' compte(s) actif(s) n\\'ont rien publié dans la fenêtre analysée. ' +\n    'Vérifie qu\\'ils sont toujours pertinents.</p>'\n  : '';\n\nconst blocErreurs = (s.erreurs || []).length\n  ? '<h3 style=\"color:#b91c1c\">Incidents de collecte</h3><p>' + s.erreurs.join('<br>') + '</p>'\n  : '';\n\nconst corps = '<h2 style=\"color:#7c3aed\">Veille performance concurrents — ' + s.aujourdhui + '</h2>' +\n  '<p>' + s.total + ' publication(s) analysée(s), ' + s.nbCreations + ' nouvelle(s), ' +\n  s.nbSurperformants + ' au-dessus du seuil de 1,5×.</p>' +\n  '<h3>Top surperformances</h3>' + top +\n  blocDormants + blocErreurs +\n  '<p style=\"color:#666;font-size:12px\">Détail et analyses dans la base Notion « Posts Concurrents ».</p>';\n\nreturn [{ json: { corps, sujet: 'Veille performance concurrents — ' + s.aujourdhui } }];"
+      },
+      "id": "454ca635-d372-4a93-a454-454ca635d372",
+      "name": "Agreger Mail",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "anna.ollivier.psy@gmail.com",
+        "subject": "={{ $json.sujet }}",
+        "message": "={{ $json.corps }}",
+        "options": {}
+      },
+      "id": "45782c71-8268-49ce-a457-45782c718268",
+      "name": "Gmail Rapport",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2420,
+        500
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule Lundi 8h": {
+      "main": [
+        [
+          {
+            "node": "Lire Comptes Actifs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lire Comptes Actifs": {
+      "main": [
+        [
+          {
+            "node": "Preparer Handles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparer Handles": {
+      "main": [
+        [
+          {
+            "node": "Apify Instagram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apify Instagram": {
+      "main": [
+        [
+          {
+            "node": "Apify TikTok",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apify TikTok": {
+      "main": [
+        [
+          {
+            "node": "Normaliser",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normaliser": {
+      "main": [
+        [
+          {
+            "node": "Lire Posts Existants",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lire Posts Existants": {
+      "main": [
+        [
+          {
+            "node": "Scorer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scorer": {
+      "main": [
+        [
+          {
+            "node": "Filtrer Creations",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Filtrer Majs",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Filtrer Comptes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filtrer Creations": {
+      "main": [
+        [
+          {
+            "node": "Creer Posts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filtrer Majs": {
+      "main": [
+        [
+          {
+            "node": "Maj Posts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filtrer Comptes": {
+      "main": [
+        [
+          {
+            "node": "Maj Comptes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Maj Comptes": {
+      "main": [
+        [
+          {
+            "node": "Lire Posts A Qualifier",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Agreger Mail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lire Posts A Qualifier": {
+      "main": [
+        [
+          {
+            "node": "Filtrer A Qualifier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filtrer A Qualifier": {
+      "main": [
+        [
+          {
+            "node": "Build Prompt Qualification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Prompt Qualification": {
+      "main": [
+        [
+          {
+            "node": "Appel LLM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Appel LLM": {
+      "main": [
+        [
+          {
+            "node": "Parser Qualification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parser Qualification": {
+      "main": [
+        [
+          {
+            "node": "Maj Analyse Posts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agreger Mail": {
+      "main": [
+        [
+          {
+            "node": "Gmail Rapport",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

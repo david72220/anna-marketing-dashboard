@@ -77,3 +77,43 @@ export function getPropertyText(prop: Record<string, unknown>): string {
             return "";
     }
 }
+
+export async function queryDatabaseAll(
+    databaseId: string,
+    options?: {
+        filter?: Record<string, unknown>;
+        sorts?: Record<string, unknown>[];
+        maxPages?: number;
+    }
+) {
+    const results: Record<string, unknown>[] = [];
+    let cursor: string | undefined;
+    let pages = 0;
+    const maxPages = options?.maxPages ?? 10;
+
+    do {
+        const res = await fetch(`${NOTION_BASE}/databases/${databaseId}/query`, {
+            method: "POST",
+            headers: {
+                Authorization: `Bearer ${NOTION_API_KEY}`,
+                "Notion-Version": "2022-06-28",
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                ...(options?.filter ? { filter: options.filter } : {}),
+                ...(options?.sorts ? { sorts: options.sorts } : {}),
+                page_size: 100,
+                ...(cursor ? { start_cursor: cursor } : {}),
+            }),
+        });
+
+        if (!res.ok) throw new Error(`Notion API error: ${res.status} ${res.statusText}`);
+
+        const data = await res.json();
+        results.push(...data.results);
+        cursor = data.has_more ? data.next_cursor : undefined;
+        pages++;
+    } while (cursor && pages < maxPages);
+
+    return results;
+}

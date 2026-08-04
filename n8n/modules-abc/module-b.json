@@ -1,0 +1,480 @@
+{
+  "name": "📊 Anna — Module B — Veille Concurrence",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "triggerAtDay": [
+                1
+              ],
+              "triggerAtHour": 9
+            }
+          ]
+        }
+      },
+      "id": "5860965c-b518-47a2-af1b-78c0c3b58519",
+      "name": "Schedule Lundi 9h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        2080,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "anna-veille-concurrence",
+        "options": {}
+      },
+      "id": "1dc137d3-b04f-43ce-8ec7-b1088e7158ab",
+      "name": "Webhook Manuel",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        2080,
+        160
+      ],
+      "webhookId": "bec1a788-a4f1-4f73-9ea7-d4cb41525fab"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://google.serper.dev/search",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"q\": \"psychologue formation en ligne emotions gestion France\",\n  \"gl\": \"fr\",\n  \"hl\": \"fr\",\n  \"num\": 10\n}",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "77eb67dc-913b-45ae-933b-6528ebb33450",
+      "name": "Serper Requete 1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2304,
+        0
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "KF0TYOU4y3g77z3p",
+          "name": "Serper API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const serperData = $json;\nconst organic = serperData.organic || [];\n\nconst results1 = organic.slice(0, 8).map(r => ({\n  title: r.title || '',\n  link: r.link || '',\n  snippet: r.snippet || '',\n  position: r.position || 0\n}));\n\nreturn [{ json: { results1 } }];"
+      },
+      "id": "617cbc16-ccad-490c-a01a-d0175e86327c",
+      "name": "Extraire Resultats 1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2528,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://google.serper.dev/search",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"q\": \"coach bien-etre youtube tiktok certification confiance soi france\",\n  \"gl\": \"fr\",\n  \"hl\": \"fr\",\n  \"num\": 10\n}",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "33167a57-4bd5-4a99-af83-bd8afe6cffd6",
+      "name": "Serper Requete 2",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2752,
+        0
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "KF0TYOU4y3g77z3p",
+          "name": "Serper API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const serper2Data = $json;\nconst organic2 = serper2Data.organic || [];\n\nconst results2 = organic2.slice(0, 8).map(r => ({\n  title: r.title || '',\n  link: r.link || '',\n  snippet: r.snippet || '',\n  position: r.position || 0\n}));\n\nconst results1 = $('Extraire Resultats 1').first().json.results1 || [];\n\nconst allResults = [...results1, ...results2];\n\nconst concurrentsText = allResults.map((r, i) =>\n  (i + 1) + '. TITRE: ' + r.title + '\\n   URL: ' + r.link + '\\n   EXTRAIT: ' + r.snippet\n).join('\\n\\n');\n\nconst prompt = 'Tu es un expert en strategie de contenu digital pour psychologues et coachs bien-etre francophones.\\n\\n' +\n  'Anna Ollivier est psychologue clinicienne qui developpe une formation en ligne sur la gestion emotionnelle et la confiance en soi. ' +\n  'Elle publie sur YouTube, TikTok et Facebook mais peine a gagner de la visibilite.\\n\\n' +\n  'Voici les resultats les mieux places sur Google pour ses thematiques cibles :\\n\\n' +\n  concurrentsText + '\\n\\n' +\n  'Analyse ces resultats et reponds avec un JSON valide, sans backtick ni commentaire :\\n' +\n  '{\"themes_dominants\":[\"theme1\",\"theme2\",\"theme3\",\"theme4\",\"theme5\"],\"angles_non_exploites\":[\"angle1\",\"angle2\",\"angle3\"],\"formats_performants\":[\"format1\",\"format2\",\"format3\"],\"mots_cles_opportunites\":[\"mot1\",\"mot2\",\"mot3\",\"mot4\",\"mot5\"],\"mots_cles_utilises_concurrents\":[\"mc1\",\"mc2\",\"mc3\",\"mc4\",\"mc5\"],\"plateformes_concurrents\":[\"plateforme1\",\"plateforme2\"],\"points_forts_concurrents\":[\"pfc1\",\"pfc2\",\"pfc3\"],\"positionnement_anna\":\"Comment Anna se differencie en 2-3 phrases\",\"produits_concurrents\":[{\"nom\":\"...\",\"produit\":\"...\",\"prix\":\"...\"},{\"nom\":\"...\",\"produit\":\"...\",\"prix\":\"...\"}],\"concurrents_principaux\":[{\"nom\":\"...\",\"url\":\"...\",\"point_fort\":\"...\"},{\"nom\":\"...\",\"url\":\"...\",\"point_fort\":\"...\"}],\"recommandations\":[\"reco1\",\"reco2\",\"reco3\"],\"resume_veille\":\"Synthese de 4 phrases max\"}';\n\nconst apiBody = JSON.stringify({\n  model: 'claude-sonnet-4-20250514',\n  max_tokens: 2500,\n  messages: [{ role: 'user', content: prompt }]\n});\n\nreturn [{ json: { prompt, apiBody, nbConcurrents: allResults.length, dateVeille: new Date().toISOString().split('T')[0] } }];"
+      },
+      "id": "d85af3c1-f7f5-4384-a382-6f558993ddd8",
+      "name": "Combiner et Build Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2960,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const claudeResponse = $json;\nlet claudeText = '';\nif (claudeResponse.content && Array.isArray(claudeResponse.content)) {\n  claudeText = claudeResponse.content[0].text || '';\n} else {\n  claudeText = JSON.stringify(claudeResponse);\n}\n\nlet analysis = {};\ntry {\n  analysis = JSON.parse(claudeText);\n} catch(e) {\n  const start = claudeText.indexOf('{');\n  const end = claudeText.lastIndexOf('}');\n  if (start !== -1 && end !== -1) {\n    try { analysis = JSON.parse(claudeText.substring(start, end + 1)); } catch(e2) {}\n  }\n}\n\nconst prev = $('Combiner et Build Prompt').first().json;\nconst concurrents = (analysis.concurrents_principaux || []).map(c => c.nom + ' — ' + c.point_fort).join('\\n');\nconst produitsConc = (analysis.produits_concurrents || []).map(p => p.nom + ': ' + p.produit + (p.prix ? ' (' + p.prix + ')' : '')).join('\\n');\n\nreturn [{\n  json: {\n    dateVeille: prev.dateVeille,\n    nbConcurrents: prev.nbConcurrents,\n    themesDominants: (analysis.themes_dominants || []).join('\\n'),\n    anglesNonExploites: (analysis.angles_non_exploites || []).join('\\n'),\n    formatsPerformants: (analysis.formats_performants || []).join('\\n'),\n    motsClesOpportunites: (analysis.mots_cles_opportunites || []).join(', '),\n    motsClesUtilises: (analysis.mots_cles_utilises_concurrents || []).join(', '),\n    plateformesConcurrents: (analysis.plateformes_concurrents || []).join(', '),\n    pointsFortsConcurrents: (analysis.points_forts_concurrents || []).join('\\n'),\n    positionnementAnna: analysis.positionnement_anna || '',\n    produitsConcurrents: produitsConc,\n    concurrentsPrincipaux: concurrents,\n    recommandations: (analysis.recommandations || []).join('\\n'),\n    resumeVeille: analysis.resume_veille || '',\n    rawAnalysis: JSON.stringify(analysis)\n  }\n}];"
+      },
+      "id": "7ddd7783-1b6c-4331-a8ff-4d4048f6e324",
+      "name": "Parse Veille",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3408,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "databaseId": {
+          "__rl": true,
+          "value": "https://www.notion.so/35e9628038de819e90b8e20f37dc75ba?v=35e9628038de81a18684000c79882a21&source=copy_link",
+          "mode": "url"
+        },
+        "title": "=Veille Concurrence — {{ $json.dateVeille }}",
+        "simple": false,
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Themes Dominants|rich_text",
+              "richText": true,
+              "text": {
+                "text": [
+                  {
+                    "text": "={{ $json.themesDominants }}",
+                    "annotationUi": {}
+                  }
+                ]
+              }
+            },
+            {
+              "key": "Angles Non Exploites|rich_text",
+              "richText": true,
+              "text": {
+                "text": [
+                  {
+                    "text": "={{ $json.anglesNonExploites }}",
+                    "annotationUi": {}
+                  }
+                ]
+              }
+            },
+            {
+              "key": "Formats Performants|rich_text",
+              "richText": true,
+              "text": {
+                "text": [
+                  {
+                    "text": "={{ $json.formatsPerformants }}",
+                    "annotationUi": {}
+                  }
+                ]
+              }
+            },
+            {
+              "key": "Mots Cles|rich_text",
+              "richText": true,
+              "text": {
+                "text": [
+                  {
+                    "text": "={{ $json.motsClesOpportunites }}",
+                    "annotationUi": {}
+                  }
+                ]
+              }
+            },
+            {
+              "key": "Mots Cles Utilises|rich_text",
+              "richText": true,
+              "text": {
+                "text": [
+                  {
+                    "text": "={{ $json.motsClesUtilises }}",
+                    "annotationUi": {}
+                  }
+                ]
+              }
+            },
+            {
+              "key": "Plateforme|rich_text",
+              "richText": true,
+              "text": {
+                "text": [
+                  {
+                    "text": "={{ $json.plateformesConcurrents }}",
+                    "annotationUi": {}
+                  }
+                ]
+              }
+            },
+            {
+              "key": "Points Forts Concurrents|rich_text",
+              "richText": true,
+              "text": {
+                "text": [
+                  {
+                    "text": "={{ $json.pointsFortsConcurrents }}",
+                    "annotationUi": {}
+                  }
+                ]
+              }
+            },
+            {
+              "key": "Positionnement Anna|rich_text",
+              "richText": true,
+              "text": {
+                "text": [
+                  {
+                    "text": "={{ $json.positionnementAnna }}",
+                    "annotationUi": {}
+                  }
+                ]
+              }
+            },
+            {
+              "key": "Produits Concurrents|rich_text",
+              "richText": true,
+              "text": {
+                "text": [
+                  {
+                    "text": "={{ $json.produitsConcurrents }}",
+                    "annotationUi": {}
+                  }
+                ]
+              }
+            },
+            {
+              "key": "Concurrents|rich_text",
+              "richText": true,
+              "text": {
+                "text": [
+                  {
+                    "text": "={{ $json.concurrentsPrincipaux }}",
+                    "annotationUi": {}
+                  }
+                ]
+              }
+            },
+            {
+              "key": "Recommandations|rich_text",
+              "richText": true,
+              "text": {
+                "text": [
+                  {
+                    "text": "={{ $json.recommandations }}",
+                    "annotationUi": {}
+                  }
+                ]
+              }
+            },
+            {
+              "key": "Resume|rich_text",
+              "richText": true,
+              "text": {
+                "text": [
+                  {
+                    "text": "={{ $json.resumeVeille }}",
+                    "annotationUi": {}
+                  }
+                ]
+              }
+            },
+            {
+              "key": "Date Veille|date",
+              "includeTime": false,
+              "date": "={{ $json.dateVeille }}"
+            },
+            {
+              "key": "Statut|select",
+              "selectValue": "En cours"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "7287fb7d-364a-4130-82e0-4b8342aae09a",
+      "name": "Sauvegarder Veille Notion",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        3632,
+        0
+      ],
+      "credentials": {
+        "notionApi": {
+          "id": "q9hB78Buwmsq8eck",
+          "name": "Notion David account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "anna.ollivier.psy@gmail.com",
+        "subject": "={{ '📊 Rapport Veille Concurrence Anna — ' + $json.dateVeille }}",
+        "message": "={{ \n'<h2>Rapport Veille Concurrence — ' + $('Parse Veille').first().json.dateVeille + '</h2>' + \n'<p><strong>Résumé :</strong><br>' + ($('Parse Veille').first().json.resumeVeille || '') + '</p>' + \n'<h3>Thèmes dominants</h3><p>' + ($('Parse Veille').first().json.themesDominants || '').replace(/\\n/g, '<br>') + '</p>' + \n'<h3>Angles non exploités par Anna</h3><p>' + ($('Parse Veille').first().json.anglesNonExploites || '').replace(/\\n/g, '<br>') + '</p>' + \n'<h3>Mots-clés opportunités</h3><p>' + ($('Parse Veille').first().json.motsClesOpportunites || '') + '</p>' + \n'<h3>Positionnement Anna</h3><p>' + ($('Parse Veille').first().json.positionnementAnna || '') + '</p>' + \n'<h3>Recommandations</h3><p>' + ($('Parse Veille').first().json.recommandations || '').replace(/\\n/g, '<br>') + '</p>'\n}}",
+        "options": {}
+      },
+      "id": "1ea777a7-67d3-4cf3-87d7-ab8172c3b249",
+      "name": "Gmail Rapport Veille",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        3840,
+        0
+      ],
+      "webhookId": "fee3deca-e18a-4abf-83f8-b72a4e8f9c99",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "IG77BgIPnIGx2vXf",
+          "name": "Gmail Anna"
+        }
+      }
+    },
+    {
+      "id": "9b06188b-dc0c-4d24-b8ac-034e3b4235cd",
+      "name": "Cascade LLM Veille",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3184,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// Appel LLM — Ollama du VPS, reseau Docker interne.\n// AUCUNE authentification, donc AUCUN secret dans ce noeud. C'est la raison du\n// basculement depuis Anthropic, dont la cle etait ecrite en dur ici : un noeud\n// Code N8N ne peut ni lire $env ni utiliser httpRequestWithAuthentication, donc\n// appeler une API a cle depuis un Code node oblige a versionner le secret.\nconst OLLAMA_URL = 'http://172.18.0.1:11434/api/chat';\nconst MODELE = 'glm-5.2:cloud';\nconst NUM_PREDICT = 2500;\n\nconst prompt = $input.first().json.prompt;\n\nlet responseText = null;\nlet erreur = null;\n\ntry {\n  const resp = await this.helpers.httpRequest({\n    method: 'POST',\n    url: OLLAMA_URL,\n    body: JSON.stringify({\n      model: MODELE,\n      messages: [{ role: 'user', content: prompt }],\n      stream: false,\n      // Obligatoire : sur un modele de raisonnement, le « thinking » consomme\n      // tout num_predict et message.content revient vide.\n      think: false,\n      options: { num_predict: NUM_PREDICT }\n    }),\n    timeout: 300000\n  });\n  if (resp && resp.message && resp.message.content) {\n    responseText = resp.message.content;\n  } else {\n    erreur = 'reponse sans message.content (think non desactive ?)';\n  }\n} catch (e) {\n  erreur = e.message;\n}\n\nif (!responseText) {\n  throw new Error('Appel LLM (' + MODELE + ') echoue : ' + (erreur || 'inconnue'));\n}\n\n// Sortie au format Anthropic : les noeuds Parse en aval restent inchanges.\nreturn [{ json: {\n  content: [{ type: 'text', text: responseText }],\n  model: MODELE,\n  type: 'message',\n  role: 'assistant'\n} }];\n"
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Lundi 9h": {
+      "main": [
+        [
+          {
+            "node": "Serper Requete 1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Manuel": {
+      "main": [
+        [
+          {
+            "node": "Serper Requete 1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Serper Requete 1": {
+      "main": [
+        [
+          {
+            "node": "Extraire Resultats 1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extraire Resultats 1": {
+      "main": [
+        [
+          {
+            "node": "Serper Requete 2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Serper Requete 2": {
+      "main": [
+        [
+          {
+            "node": "Combiner et Build Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Veille": {
+      "main": [
+        [
+          {
+            "node": "Sauvegarder Veille Notion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sauvegarder Veille Notion": {
+      "main": [
+        [
+          {
+            "node": "Gmail Rapport Veille",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Combiner et Build Prompt": {
+      "main": [
+        [
+          {
+            "node": "Cascade LLM Veille",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cascade LLM Veille": {
+      "main": [
+        [
+          {
+            "node": "Parse Veille",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false,
+    "callerPolicy": "workflowsFromSameOwner"
+  }
+}
