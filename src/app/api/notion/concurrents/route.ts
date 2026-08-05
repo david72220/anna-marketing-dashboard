@@ -20,6 +20,7 @@ interface PostConcurrent {
     angle: string;
     transposable: string;
     recycle: boolean;
+    script: string;
     createdTime: string;
 }
 
@@ -69,6 +70,7 @@ async function fetchPosts(): Promise<PostConcurrent[]> {
             angle: getPropertyText(props["Angle"] || {}),
             transposable: getPropertyText(props["Transposable Anna"] || {}),
             recycle: booleen(props["Recyclé"]),
+            script: getPropertyText(props["Script"] || {}),
             createdTime: page.created_time as string,
         };
     });
