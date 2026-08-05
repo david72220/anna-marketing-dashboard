@@ -15,6 +15,7 @@ import {
   Facebook,
   LogOut,
   TrendingUp,
+  HelpCircle,
 } from "lucide-react";
 import Image from "next/image";
 
@@ -25,6 +26,7 @@ const NAV = [
   { href: "/dashboard/backlog", label: "Backlog Posts", icon: PenLine },
   { href: "/dashboard/metrics", label: "KPI réseaux", icon: BarChart3 },
   { href: "/dashboard/concurrents", label: "Concurrents", icon: TrendingUp },
+  { href: "/dashboard/aide", label: "Mode d'emploi", icon: HelpCircle },
 ];
 
 const SOCIAL_LINKS = [

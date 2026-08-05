@@ -33,6 +33,12 @@ const SCREEN_META: Record<string, { eyebrow: string; pre: string; em: string; su
     em: "posts",
     sub: "Idées, brouillons et publications prêtes — votre flux éditorial à venir.",
   },
+  aide: {
+    eyebrow: "Mode d'emploi",
+    pre: "Comment ça ",
+    em: "marche",
+    sub: "L'essentiel en une page — où cliquer, et ce qui se fait tout seul.",
+  },
   metrics: {
     eyebrow: "Boussole chiffrée",
     pre: "KPI ",
