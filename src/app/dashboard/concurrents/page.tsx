@@ -7,7 +7,7 @@ import NetworkBadge from "@/components/NetworkBadge";
 import Counter from "@/components/Counter";
 import ScoreBadge from "@/components/ScoreBadge";
 import { formatDate } from "@/lib/notion";
-import { RefreshCw, Users, FileText, TrendingUp, Flame, ChevronDown, Recycle, Check } from "lucide-react";
+import { RefreshCw, Users, FileText, TrendingUp, Flame, ChevronDown, Recycle, Check, Compass } from "lucide-react";
 
 const SURPERFORMANCE_THRESHOLD = 1.5;
 
@@ -76,6 +76,27 @@ export default function ConcurrentsPage() {
     const [expandedId, setExpandedId] = useState<string | null>(null);
     const [recycleState, setRecycleState] = useState<Record<string, "loading" | "done" | "error">>({});
     const [recycleErrors, setRecycleErrors] = useState<Record<string, string>>({});
+    const [decouverteEtat, setDecouverteEtat] = useState<"idle" | "loading" | "done" | "error">("idle");
+    const [decouverteMessage, setDecouverteMessage] = useState("");
+
+    const lancerDecouverte = async () => {
+        setDecouverteEtat("loading");
+        setDecouverteMessage("");
+        try {
+            const r = await fetch("/api/notion/concurrents/decouverte", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({}),
+            });
+            const data = await r.json();
+            if (!r.ok || data.error) throw new Error(data.error || "Erreur " + r.status);
+            setDecouverteEtat("done");
+            setDecouverteMessage(data.message || "Découverte lancée — candidats dans Notion dans 3 à 5 minutes.");
+        } catch (e: any) {
+            setDecouverteEtat("error");
+            setDecouverteMessage(e.message || "Erreur lors du lancement de la découverte");
+        }
+    };
 
     const loadData = async () => {
         setLoading(true);
@@ -187,11 +208,24 @@ export default function ConcurrentsPage() {
                         </p>
                     </div>
                     <div className="page-actions">
+                        <button
+                            className="btn btn-ghost"
+                            disabled={decouverteEtat === "loading"}
+                            onClick={lancerDecouverte}
+                            title="Recherche par hashtags parentalité sur TikTok et Instagram ; les candidats arrivent dans Comptes Concurrents, à valider en cochant Actif"
+                        >
+                            <Compass size={12} /> {decouverteEtat === "loading" ? "Lancement…" : "Découvrir des concurrents"}
+                        </button>
                         <button className="btn btn-ghost" onClick={() => loadData()}>
                             <RefreshCw size={12} /> Actualiser
                         </button>
                     </div>
                 </div>
+                {decouverteMessage && (
+                    <p style={{ fontSize: "var(--size-meta)", color: decouverteEtat === "error" ? "var(--rose)" : "var(--mauve)", marginBottom: "var(--space-3)" }}>
+                        {decouverteMessage}
+                    </p>
+                )}
 
                 {/* Le déclenchement depuis l'application a été retiré : le webhook N8N
                     s'exécutait malgré un jeton invalide. Collecte par cron hebdomadaire. */}
